@@ -28,7 +28,7 @@
 
 
 
-char* readCodeFromFile(char* name);
+int readCodeFromFile(char* data_segment, char* name);
 
 
 
@@ -48,29 +48,30 @@ char* readCodeFromFile(char* name);
 int main(int argc, char* argv[])
 {
   char* data_segment = NULL;
-
+  int return_value = SUCCESS;
   if (argc == 3)
   {
-    //if (strcmp(argv[1], "-e"))
+    if (!strcmp(argv[1], "-e"))
     {
-      data_segment = readCodeFromFile(argv[2]);
+      if((return_value = readCodeFromFile(data_segment, argv[2]) != 0))
+        return return_value;
     }
   }
   
   printf("Datasegment : %s \n", data_segment);
-
-  return 0;
+  getchar();
+  return return_value;
 }
 
-char* readCodeFromFile(char* name)
+int readCodeFromFile(char* data_segment, char* name)
 {
-  char* data_segment = (char*) calloc(sizeof(char) * 1024, 0);
+  data_segment = (char*) calloc(sizeof(char) * 1024, 0);
   if (data_segment == NULL)
   {
     printf("[ERR] out of memory\n");
     return OUT_OF_MEMORY;
   }
-
+  //------------error happens--------------//
   FILE* file;
   fopen_s(&file, name, "r");
   if (file == NULL)
@@ -78,7 +79,7 @@ char* readCodeFromFile(char* name)
     printf("[ERR] reading the file failed\n");
     return READING_FILE_FAIL;
   }
-
+  
   int current_char;
   int data_segment_size = 1024;
   int counter = 0;
@@ -88,7 +89,7 @@ char* readCodeFromFile(char* name)
     if (counter < (int)(data_segment_size * 0,8))
     {
       data_segment[counter] = current_char;
-      data_segment[counter + 1] = NULL;
+      data_segment[counter + 1] = (char)NULL;
     }
     else
     {
@@ -108,4 +109,5 @@ char* readCodeFromFile(char* name)
   }
 
   fclose(file);
+  return SUCCESS;
 }
