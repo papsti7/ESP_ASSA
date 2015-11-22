@@ -11,7 +11,7 @@
 //          Harald Deutschmann XXXXXX
 //          Julia Heritsch XXXXXX
 //
-// Latest Changes: 21.11.2015 (by Stefan Papst)
+// Latest Changes: 22.11.2015 (by Stefan Papst)
 //------------------------------------------------------------------------------
 //
 /*this is a special flag in visual studio for secure function errors/ Can be commented if there is a error in gcc*/
@@ -40,8 +40,10 @@
 
 /*------------HEADER NEED TO BE DONE-----------*/
 int readCodeFromFile(char** data_segment, char* name);
-int checkCodeCorrectness(char* data_segment);
+int checkCodeCorrectness(char* data_segment, int* number_of_loops);
 int checkCommandOrComment(char current_char);
+int runCode(char* data_segment);
+int parseCode(char* data_segment, int*** brackets, int number_of_loops);
 
 
 //-----------------------------------------------------------------------------
@@ -85,13 +87,7 @@ int main(int argc, char* argv[])
     printf("[ERR] usage: ./assa [-e brainfuck_filnename]\n");
     return FALSE_ARGUMENTS;
   }
-  if (checkCodeCorrectness(data_segment) != SUCCESS)
-  {
-    printf("[ERR] parsing of input failed\n");
-    //---------This free is failing with visual studio, I'll test it on unix and fix it later. --------//
-    //free(data_segment);
-    return PARSE_FILE_ERROR;
-  }
+  
   
   puts(data_segment);
   
@@ -164,8 +160,9 @@ int readCodeFromFile(char** data_segment, char* name)
   return SUCCESS;
 }
 
-int checkCodeCorrectness(char* data_segment)
+int checkCodeCorrectness(char* data_segment, int* number_of_loops)
 {
+ 
   //1 because in data_segment[0] is a value of how long the code part is. 
   int counter = 1;
   int open_brackets_count = 0;
@@ -178,7 +175,7 @@ int checkCodeCorrectness(char* data_segment)
       close_brackets_count++;
     counter++;
   }
-
+  *number_of_loops = open_brackets_count;
   return open_brackets_count - close_brackets_count;
 }
 
@@ -214,4 +211,110 @@ int checkCommandOrComment(char current_char)
       return FALSE;
       break;
   }
-}                                                                                                                                   
+}     
+
+int runCode(char* data_segment)
+{
+  int number_of_loops = 0;
+  if (checkCodeCorrectness(data_segment, &number_of_loops) != SUCCESS)
+  {
+    printf("[ERR] parsing of input failed\n");
+    //---------This free is failing with visual studio, I'll test it on unix and fix it later. --------//
+    //free(data_segment);
+    return PARSE_FILE_ERROR;
+  }
+
+  int** bracket_index = (int**) calloc(2 * number_of_loops, 0);
+  if (bracket_index == NULL)
+  {
+    printf("[ERR] out of memory\n");
+    //free(data_segment);
+    return OUT_OF_MEMORY;
+  }
+
+  parseCode(data_segment, &bracket_index, number_of_loops);
+
+  // first(0-te) element is the length of the code
+  int code_length = (int)data_segment[0];
+  int current_command_counter = 1;
+  int open_bracket = 0;
+  int close_bracket = 0;
+
+/*
+//--------------------------------------------------------------------------------------
+// TODO: implement run function , maybe a runFromTO() function run the code between brackets
+//-------------------------------------------------------------------------------------
+*/
+
+
+  //data - part of segment
+  char* program_counter = data_segment[code_length];
+  int bracket_counter = 0;
+
+  while (data_segment[current_command_counter] != '\0')
+  {
+    switch (data_segment[current_command_counter])
+    {
+      case '<':
+        --program_counter;
+        break;
+      case '>':
+        ++program_counter;
+        break;
+      case '+':
+        ++(*program_counter);
+        break;
+      case '-':
+        --(*program_counter);
+        break;
+      case '.':
+        putchar(*program_counter);
+        break;
+      case ',':
+        *program_counter = getchar();
+        break;
+      case '[':
+        if(*program_counter == 0)
+          // TODO
+        break;
+      case ']':
+        return TRUE;
+        break;
+      default:
+        return FALSE;
+        break;
+    }
+  }
+}
+
+int parseCode(char* data_segment, int*** brackets, int number_of_loops)
+{
+  int counter = 1;
+  int latest_open_bracket = 0;
+  int bracket_queue_counter = 0;
+  int* bracket_queue = (int*) calloc(sizeof(int) * number_of_loops, 0);
+  if (bracket_queue == NULL)
+  {
+    printf("[ERR] out of memory\n");
+    return OUT_OF_MEMORY;
+  }
+
+  while (data_segment[counter] != '\0')
+  {
+    if (number_of_loops == 0)
+    {
+      free(bracket_queue);
+      return SUCCESS;
+    }
+    if (data_segment[counter] == '[')
+    {
+      (*brackets)[latest_open_bracket][0] = counter;
+      *(bracket_queue + bracket_queue_counter++) = latest_open_bracket++;
+    }
+    else if (data_segment[counter] == ']')
+    {
+      (*brackets)[*(bracket_queue + --bracket_queue_counter)][1] = counter;
+      number_of_loops--; 
+    }
+  }
+}
