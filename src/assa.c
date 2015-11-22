@@ -32,10 +32,14 @@
 #define COULD_NOT_PARSE_FILE 3
 #define READING_FILE_FAIL 4
 
+#define TRUE 0
+#define FALSE 1
+
 
 
 int readCodeFromFile(char** data_segment, char* name);
-
+int parseCode(char* data_segment);
+int checkCommandOrComment(char current_char);
 
 
 //-----------------------------------------------------------------------------
@@ -62,6 +66,7 @@ int main(int argc, char* argv[])
     {
       if((return_value = readCodeFromFile(&data_segment, argv[2]) != 0))
         return return_value;
+
     }
     else
     {
@@ -93,7 +98,10 @@ int readCodeFromFile(char** data_segment, char* name)
     printf("[ERR] out of memory\n");
     return OUT_OF_MEMORY;
   }
+  //set end of string
+  (*data_segment)[1023] = '\0';
 
+  //open file
   FILE* file;
   errno_t error_type;
   error_type = fopen_s(&file, name, "r");
@@ -109,34 +117,71 @@ int readCodeFromFile(char** data_segment, char* name)
   int counter = 0;
   while ((current_char = getc(file)) != EOF)
   {
-    
-    if (counter < (int)(data_segment_size * 0.8))
+    if (checkCommandOrComment(current_char) == TRUE)
     {
-      (*data_segment)[counter] = current_char;
-      (*data_segment)[counter + 1] = '\0';
-     
-    }
-    else
-    {
-      char* new_datasegment = NULL;
-      data_segment_size *= 2;
-
-      new_datasegment = (char*)realloc(*data_segment, data_segment_size);
-      if (new_datasegment == NULL)
+      if (counter < (int)(data_segment_size * 0.8))
       {
-        printf("[ERR] out of memory\n");
-        free(*data_segment);
-        return OUT_OF_MEMORY;
+        (*data_segment)[counter] = current_char;
+        (*data_segment)[counter + 1] = '\0';
+
       }
-      
-      *data_segment = new_datasegment;
-      (*data_segment)[counter] = current_char;
-      (*data_segment)[counter + 1] = '\0';
+      else
+      {
+        char* new_datasegment = NULL;
+        data_segment_size *= 2;
+
+        new_datasegment = (char*)realloc(*data_segment, data_segment_size);
+        if (new_datasegment == NULL)
+        {
+          printf("[ERR] out of memory\n");
+          free(*data_segment);
+          return OUT_OF_MEMORY;
+        }
+
+        *data_segment = new_datasegment;
+        (*data_segment)[counter] = current_char;
+        (*data_segment)[counter + 1] = '\0';
+      }
+      counter++;
     }
-    counter++;
+    
   }
   //puts(*data_segment);
 
   fclose(file);
   return SUCCESS;
+}
+
+int checkCommandOrComment(char current_char)
+{
+  switch (current_char)
+  {
+    case '<':
+      return TRUE;
+      break;
+    case '>':
+      return TRUE;
+      break;
+    case '+':
+      return TRUE;
+      break;
+    case '-':
+      return TRUE;
+      break;
+    case '.':
+      return TRUE;
+      break;
+    case ',':
+      return TRUE;
+      break;
+    case '[':
+      return TRUE;
+      break;
+    case ']':
+      return TRUE;
+      break;
+    default:
+      return FALSE;
+      break;
+  }
 }
