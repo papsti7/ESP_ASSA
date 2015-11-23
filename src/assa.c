@@ -70,7 +70,7 @@ int main(int argc, char* argv[])
     {
       if((return_value = readCodeFromFile(&data_segment, argv[2]) != 0))
         return return_value;
-
+      runCode(data_segment);
     }
     else
     {
@@ -237,8 +237,15 @@ int runCode(char* data_segment)
   // first(0-te) element is the length of the code
   int code_length = (int)data_segment[0];
   int current_command_counter = 1;
-  int open_bracket = 0;
-  int close_bracket = 0;
+  
+  int* bracket_queue = (int*)calloc(number_of_loops, sizeof(int));
+  if (bracket_queue == NULL)
+  {
+    printf("[ERR] out of memory\n");
+    return OUT_OF_MEMORY;
+  }
+  int lasted_open_bracket = 0;
+  int first_opened_bracket = 0;
 
 /*
 //--------------------------------------------------------------------------------------
@@ -274,17 +281,33 @@ int runCode(char* data_segment)
         *program_counter = getchar();
         break;
       case '[':
-        if(*program_counter == 0)
-          // TODO
+        if (*program_counter == 0)
+        {
+          current_command_counter = bracket_index[(--lasted_open_bracket)][1];
+          lasted_open_bracket = bracket_queue[lasted_open_bracket - 1];
+        }
+          
+        else if(lasted_open_bracket > 0)
+        {
+          if ((lasted_open_bracket - 1) != bracket_queue[(lasted_open_bracket - 1)])
+          {
+            bracket_queue[lasted_open_bracket++] = lasted_open_bracket;
+          }
+        }
+        else if (lasted_open_bracket == 0)
+        {
+          bracket_queue[lasted_open_bracket++] = lasted_open_bracket;
+        }
         break;
       case ']':
-        return TRUE;
+        current_command_counter = bracket_index[(lasted_open_bracket - 1)][0];
         break;
       default:
-        return FALSE;
         break;
     }
+    current_command_counter++;
   }
+  //free(bracket_queue);
 }
 
 int parseCode(char* data_segment, int*** brackets, int number_of_loops)
@@ -308,6 +331,7 @@ int parseCode(char* data_segment, int*** brackets, int number_of_loops)
     }
     if (data_segment[counter] == '[')
     {
+      //error!!!
       (*brackets)[latest_open_bracket][0] = counter;
       *(bracket_queue + bracket_queue_counter++) = latest_open_bracket++;
     }
@@ -316,5 +340,7 @@ int parseCode(char* data_segment, int*** brackets, int number_of_loops)
       (*brackets)[*(bracket_queue + --bracket_queue_counter)][1] = counter;
       number_of_loops--; 
     }
+    counter++;
   }
+  return PARSE_FILE_ERROR;
 }
