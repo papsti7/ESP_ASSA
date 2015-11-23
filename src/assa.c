@@ -100,6 +100,7 @@ int main(int argc, char* argv[])
         if(data_segment == NULL)
         {
           printf("[ERR] no program loaded\n");
+          freeAll(input);
           return OUT_OF_MEMORY;
         }
         if(input[1] != NULL && (number = atoi(input[1])) != 0)
