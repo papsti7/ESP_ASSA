@@ -100,7 +100,7 @@ int main(int argc, char* argv[])
 
 int readCodeFromFile(char** data_segment, char* name)
 {
-  *data_segment = (char*) calloc(sizeof(char) * 1024, 0);
+  *data_segment = (char*) calloc(1024, sizeof(char));
   if (*data_segment == NULL)
   {
     printf("[ERR] out of memory\n");
@@ -224,7 +224,7 @@ int runCode(char* data_segment)
     return PARSE_FILE_ERROR;
   }
 
-  int** bracket_index = (int**) calloc(2 * number_of_loops, 0);
+  int** bracket_index = (int**) calloc(2 * number_of_loops, sizeof(int));
   if (bracket_index == NULL)
   {
     printf("[ERR] out of memory\n");
@@ -292,7 +292,7 @@ int parseCode(char* data_segment, int*** brackets, int number_of_loops)
   int counter = 1;
   int latest_open_bracket = 0;
   int bracket_queue_counter = 0;
-  int* bracket_queue = (int*) calloc(sizeof(int) * number_of_loops, 0);
+  int* bracket_queue = (int*) calloc(number_of_loops, sizeof(int));
   if (bracket_queue == NULL)
   {
     printf("[ERR] out of memory\n");
