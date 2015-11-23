@@ -39,10 +39,10 @@
 
 
 /*------------HEADER NEED TO BE DONE-----------*/
-int readCodeFromFile(char** data_segment, char* name);
+int readCodeFromFile(char** data_segment, char* name, int* code_length);
 int checkCodeCorrectness(char* data_segment, int* number_of_loops);
 int checkCommandOrComment(char current_char);
-int runCode(char* data_segment);
+int runCode(char* data_segment, int code_length);
 int parseCode(char* data_segment, int*** brackets, int number_of_loops);
 
 
@@ -68,9 +68,10 @@ int main(int argc, char* argv[])
   {
     if (!strcmp(argv[1], "-e"))
     {
-      if((return_value = readCodeFromFile(&data_segment, argv[2]) != 0))
+      int code_length = 0;
+      if((return_value = readCodeFromFile(&data_segment, argv[2], &code_length) != 0))
         return return_value;
-      runCode(data_segment);
+      runCode(data_segment, code_length);
     }
     else
     {
@@ -89,7 +90,7 @@ int main(int argc, char* argv[])
   }
   
   
-  puts(data_segment);
+  //puts(data_segment);
   
   getchar();
   
@@ -98,7 +99,7 @@ int main(int argc, char* argv[])
   return return_value;
 }
 
-int readCodeFromFile(char** data_segment, char* name)
+int readCodeFromFile(char** data_segment, char* name, int* code_length)
 {
   *data_segment = (char*) calloc(1024, sizeof(char));
   if (*data_segment == NULL)
@@ -150,9 +151,9 @@ int readCodeFromFile(char** data_segment, char* name)
         (*data_segment)[counter] = current_char;
         (*data_segment)[counter + 1] = '\0';
       }
-      (*data_segment)[0] = (++counter) + 1;
+      *code_length = (++counter) + 1;
     }
-    
+    (*data_segment)[0] = '\0';
   }
   //puts(*data_segment);
 
@@ -213,7 +214,7 @@ int checkCommandOrComment(char current_char)
   }
 }     
 
-int runCode(char* data_segment)
+int runCode(char* data_segment, int code_length)
 {
   int number_of_loops = 0;
   if (checkCodeCorrectness(data_segment, &number_of_loops) != SUCCESS)
@@ -224,18 +225,31 @@ int runCode(char* data_segment)
     return PARSE_FILE_ERROR;
   }
 
-  int** bracket_index = (int**) calloc(2 * number_of_loops, sizeof(int));
+  int** bracket_index = (int**) calloc(number_of_loops, sizeof(int*));
   if (bracket_index == NULL)
   {
     printf("[ERR] out of memory\n");
     //free(data_segment);
     return OUT_OF_MEMORY;
   }
-
+  int col_count;
+  for (col_count = 0; col_count < number_of_loops; col_count++)
+  {
+    bracket_index[col_count] = (int*) calloc(2, sizeof(*bracket_index[col_count]));
+    if (bracket_index[col_count] == NULL)
+    {
+      printf("[ERR] out of memory\n");
+      //free(data_segment);
+      //free all parts with where allocated till now !!!!
+      return OUT_OF_MEMORY;
+    }
+  }
+  
+  
   parseCode(data_segment, &bracket_index, number_of_loops);
 
   // first(0-te) element is the length of the code
-  int code_length = (int)data_segment[0];
+  
   int current_command_counter = 1;
   
   int* bracket_queue = (int*)calloc(number_of_loops, sizeof(int));
@@ -244,7 +258,7 @@ int runCode(char* data_segment)
     printf("[ERR] out of memory\n");
     return OUT_OF_MEMORY;
   }
-  int lasted_open_bracket = 0;
+  int latest_open_bracket = 0;
   int first_opened_bracket = 0;
 
 /*
@@ -255,7 +269,7 @@ int runCode(char* data_segment)
 
 
   //data - part of segment
-  char* program_counter = data_segment[code_length];
+  char* program_counter = data_segment + code_length;
   int bracket_counter = 0;
 
   while (data_segment[current_command_counter] != '\0')
@@ -283,31 +297,35 @@ int runCode(char* data_segment)
       case '[':
         if (*program_counter == 0)
         {
-          current_command_counter = bracket_index[(--lasted_open_bracket)][1];
-          lasted_open_bracket = bracket_queue[lasted_open_bracket - 1];
+          /*----ERR: latest_open_bracket is out of bounds, FIX IT!----*/
+          current_command_counter = bracket_index[(--latest_open_bracket)][1];
+          latest_open_bracket = bracket_queue[latest_open_bracket - 1];
         }
           
-        else if(lasted_open_bracket > 0)
+        else if(latest_open_bracket > 0)
         {
-          if ((lasted_open_bracket - 1) != bracket_queue[(lasted_open_bracket - 1)])
+          if ((latest_open_bracket - 1) != bracket_queue[(latest_open_bracket - 1)])
           {
-            bracket_queue[lasted_open_bracket++] = lasted_open_bracket;
+            bracket_queue[latest_open_bracket++] = latest_open_bracket;
           }
         }
-        else if (lasted_open_bracket == 0)
+        else if (latest_open_bracket == 0)
         {
-          bracket_queue[lasted_open_bracket++] = lasted_open_bracket;
+          bracket_queue[latest_open_bracket++] = latest_open_bracket;
         }
         break;
       case ']':
-        current_command_counter = bracket_index[(lasted_open_bracket - 1)][0];
+        current_command_counter = bracket_index[(latest_open_bracket - 1)][0];
+        current_command_counter--;
         break;
       default:
         break;
     }
+    //puts("next command\n");
     current_command_counter++;
   }
   //free(bracket_queue);
+  return SUCCESS;
 }
 
 int parseCode(char* data_segment, int*** brackets, int number_of_loops)
