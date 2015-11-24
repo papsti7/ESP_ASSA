@@ -42,10 +42,10 @@
 
 
 /*------------HEADER NEED TO BE DONE-----------*/
-int readCodeFromFile(char** data_segment, char* name, int* code_length);
+int readCodeFromFile(char** data_segment, char* name, int* code_length, int* data_segment_size_counter);
 int checkCodeCorrectness(char* data_segment, int* number_of_loops);
 int checkCommandOrComment(char current_char);
-int runCode(char* data_segment, int code_length);
+int runCode(char** data_segment, int code_length, int data_segment_size_counter);
 int parseCode(char* data_segment, int*** brackets, int number_of_loops);
 int getIndexOfBracket(int** bracket_index, int size_of_array, int current_command_counter, int open_or_close);
 
@@ -73,9 +73,10 @@ int main(int argc, char* argv[])
     if (!strcmp(argv[1], "-e"))
     {
       int code_length = 0;
-      if((return_value = readCodeFromFile(&data_segment, argv[2], &code_length) != 0))
+      int data_segment_size;
+      if((return_value = readCodeFromFile(&data_segment, argv[2], &code_length, &data_segment_size) != 0))
         return return_value;
-      runCode(data_segment, code_length);
+      runCode(&data_segment, code_length, data_segment_size);
     }
     else
     {
@@ -103,7 +104,7 @@ int main(int argc, char* argv[])
   return return_value;
 }
 
-int readCodeFromFile(char** data_segment, char* name, int* code_length)
+int readCodeFromFile(char** data_segment, char* name, int* code_length, int* data_segment_size)
 {
   *data_segment = (char*) calloc(1024, sizeof(char));
   if (*data_segment == NULL)
@@ -112,7 +113,7 @@ int readCodeFromFile(char** data_segment, char* name, int* code_length)
     return OUT_OF_MEMORY;
   }
   //set end of string
-  (*data_segment)[(int)(1024 * 0.8 + 1)] = '\0';
+  (*data_segment)[(int)(1024 * 0.8) + 1] = '\0';
 
   //open file
   FILE* file;
@@ -126,13 +127,13 @@ int readCodeFromFile(char** data_segment, char* name, int* code_length)
   }
   
   int current_char;
-  int data_segment_size = 1024;
+ *data_segment_size = 1024;
   int counter = 1;
   while ((current_char = getc(file)) != EOF)
   {
     if (checkCommandOrComment(current_char) == TRUE)
     {
-      if (counter < (int)(data_segment_size * 0.8))
+      if (counter < (int)(*data_segment_size * 0.8))
       {
         (*data_segment)[counter] = current_char;
         (*data_segment)[counter + 1] = '\0';
@@ -140,28 +141,31 @@ int readCodeFromFile(char** data_segment, char* name, int* code_length)
       }
       else
       {
-        char* new_datasegment = NULL;
-        data_segment_size *= 2;
+        char* new_data_segment = NULL;
+        *data_segment_size *= 2;
 
-        new_datasegment = (char*)realloc(*data_segment, data_segment_size);
-        if (new_datasegment == NULL)
+        new_data_segment = (char*)realloc(*data_segment, *data_segment_size);
+        if (new_data_segment == NULL)
         {
           printf("[ERR] out of memory\n");
           free(*data_segment);
           return OUT_OF_MEMORY;
         }
+        unsigned char* start = &(new_data_segment[*data_segment_size / 2]);
+        memset(start, 0, *data_segment_size / 2);
 
-        *data_segment = new_datasegment;
+        *data_segment = new_data_segment;
         (*data_segment)[counter] = current_char;
         (*data_segment)[counter + 1] = '\0';
       }
       *code_length = (++counter) + 1;
     }
-    (*data_segment)[0] = '\0';
+    (*data_segment)[0] = 'a';
   }
   //puts(*data_segment);
 
   fclose(file);
+  
   return SUCCESS;
 }
 
@@ -218,10 +222,10 @@ int checkCommandOrComment(char current_char)
   }
 }     
 
-int runCode(char* data_segment, int code_length)
+int runCode(char** data_segment, int code_length, int data_segment_size)
 {
   int number_of_loops = 0;
-  if (checkCodeCorrectness(data_segment, &number_of_loops) != SUCCESS)
+  if (checkCodeCorrectness(*data_segment, &number_of_loops) != SUCCESS)
   {
     printf("[ERR] parsing of input failed\n");
     //---------This free is failing with visual studio, I'll test it on unix and fix it later. --------//
@@ -250,7 +254,7 @@ int runCode(char* data_segment, int code_length)
   }
   
   
-  parseCode(data_segment, &bracket_index, number_of_loops);
+  parseCode(*data_segment, &bracket_index, number_of_loops);
 
   // first(0-te) element is the length of the code
   
@@ -267,12 +271,33 @@ int runCode(char* data_segment, int code_length)
 
 
   //data - part of segment
-  char* program_counter = data_segment + code_length;
+  char* program_counter = (*data_segment) + code_length;
   
 
-  while (data_segment[current_command_counter] != '\0')
+  while ((*data_segment)[current_command_counter] != '\0')
   {
-    switch (data_segment[current_command_counter])
+    if (program_counter >= ((*data_segment) + data_segment_size - 1))
+    {
+      printf("out of memory now\n");
+      data_segment_size *= 2;
+      
+      char* new_data_segment = (char*)realloc(*data_segment, data_segment_size);
+      if (new_data_segment == NULL)
+      {
+        printf("[ERR] out of memory\n");
+        //free(data_segment);
+        return OUT_OF_MEMORY;
+      }
+      
+      unsigned char* start = &(new_data_segment[data_segment_size / 2]);
+      memset(start, 0, data_segment_size / 2);
+      *data_segment = new_data_segment;
+      printf("new memory done\n");
+    }
+      
+      
+    //printf("program counter : %d\n", (int)*program_counter);
+    switch ((*data_segment)[current_command_counter])
     {
       case '<':
         --program_counter;
@@ -314,7 +339,7 @@ int runCode(char* data_segment, int code_length)
     //puts("next command\n");
     current_command_counter++;
   }
-  //free(bracket_queue);
+  //free(bracket_index) need to be a function for double pointer
   return SUCCESS;
 }
 
@@ -339,7 +364,7 @@ int parseCode(char* data_segment, int*** brackets, int number_of_loops)
     }
     if (data_segment[counter] == '[')
     {
-      //error!!!
+      
       (*brackets)[latest_open_bracket][0] = counter;
       *(bracket_queue + bracket_queue_counter++) = latest_open_bracket++;
     }
