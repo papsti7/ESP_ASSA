@@ -39,8 +39,12 @@ typedef struct{
     int inputRange;
     int error;
 }Input;
-
-int readCodeFromFile(char** data_segment, char* name);
+typedef struct{
+    char* data_segment;
+    int readFileError;
+    int memoryError;
+}Data;
+Data readCodeFromFile(Data data_segment, char* name);
 Input readStd();
 void freeAll(char** input, int countInpMalloc);
 
@@ -59,15 +63,27 @@ void freeAll(char** input, int countInpMalloc);
 ///
 int main(int argc, char* argv[])
 {
-  char* data_segment = NULL;
+  Data data;
+  data.data_segment = NULL;
+  data.memoryError = 0;
+  data.readFileError = 0;
   int return_value = SUCCESS;
 
   if (argc == 3)
   {
     if (!strcmp(argv[1], "-e"))
     {
-      if((return_value = readCodeFromFile(&data_segment, argv[2]) != 0))
-        return return_value;
+      data = readCodeFromFile(data, argv[2]);
+      if(data.memoryError == OUT_OF_MEMORY)
+      {
+        free(data.data_segment);
+        return OUT_OF_MEMORY;
+      }
+      if(data.readFileError == READING_FILE_FAIL)
+      {
+        free(data.data_segment);
+        return READING_FILE_FAIL;
+      }
     }
     else
     {
@@ -78,7 +94,6 @@ int main(int argc, char* argv[])
   else if (argc == 1)
   {
     /*-----START DEBUG MODE-----*/
- 
   while(1)
   {
     Input input;
@@ -95,32 +110,42 @@ int main(int argc, char* argv[])
     if(strcmp(input.inputString[0], "quit") == 0)
     {
       freeAll(input.inputString, input.inputRange);
-      if(data_segment != NULL)
-        free(data_segment);
+      if(data.data_segment != NULL)
+        free(data.data_segment);
+      printf("Bye\n");
       return SUCCESS;
     }
     if(strcmp(input.inputString[0], "load") == 0)
     {
+      if(data.data_segment != NULL)
+      {
+      	free(data.data_segment);
+      }
       if(input.inputRange < 2)
       {
         printf("[ERR] wrong parameter count\n");
         freeAll(input.inputString, input.inputRange);
         continue;
       }
-      if((return_value = readCodeFromFile(&data_segment, input.inputString[1])) != 0)
+      data = readCodeFromFile(data, input.inputString[1]);
+      if(data.memoryError == OUT_OF_MEMORY)
       {
-        free(data_segment);
+        free(data.data_segment);
         freeAll(input.inputString, input.inputRange);
-        return return_value;
+        return OUT_OF_MEMORY;
       }
-      if(data_segment[strlen(data_segment) - 1] == '\n')
-        data_segment[strlen(data_segment) - 1] = '\0';
+      if(data.readFileError == READING_FILE_FAIL)
+      {
+        free(data.data_segment);
+        freeAll(input.inputString, input.inputRange);
+        return READING_FILE_FAIL;
+      }
     }
     if(strcmp(input.inputString[0], "show") == 0)
       {
         int number = 0;
         int counter;
-        if(data_segment == NULL)
+        if(data.data_segment == NULL)
         {
           printf("[ERR] no program loaded\n");
           freeAll(input.inputString, input.inputRange);
@@ -130,16 +155,20 @@ int main(int argc, char* argv[])
         {
           for(counter = 0; counter < 10; counter++)
           {
-            if(data_segment[counter] == '\0')
+            if(data.data_segment[counter] == '\0')
               break;
-            printf("%c", data_segment[counter]);
+            printf("%c", data.data_segment[counter]);
           }
           printf("\n");
         }else{
           if((number = atoi(input.inputString[1])) != 0)
           {
             for(counter = 0; counter < number; counter++)
-              printf("%c", data_segment[counter]);
+            {
+              if(data.data_segment[counter] == '\0')
+                break;
+              printf("%c", data.data_segment[counter]);
+            }
             printf("\n");
           }
         }
@@ -158,19 +187,22 @@ int main(int argc, char* argv[])
     return FALSE_ARGUMENTS;
   }
 
-  puts(data_segment);
+  puts(data.data_segment);
   getchar();
-  free(data_segment);
+  free(data.data_segment);
   return return_value;
 }
 
-int readCodeFromFile(char** data_segment, char* name)
+Data readCodeFromFile(Data data, char* name)
 {
-  *data_segment = (char*) calloc(sizeof(char) * 1024, 0);
-  if (*data_segment == NULL)
+  data.data_segment = (char*) malloc(sizeof(char) * 1024);
+  data.memoryError = 0;
+  data.readFileError = 0;
+  if (data.data_segment == NULL)
   {
     printf("[ERR] out of memory\n");
-    return OUT_OF_MEMORY;
+    data.memoryError = OUT_OF_MEMORY;
+    return data;
   }
 
   FILE* file =  fopen(name, "r");
@@ -180,40 +212,42 @@ int readCodeFromFile(char** data_segment, char* name)
   {
     printf("[ERR] reading the file failed\n");
 //    printf("errno type: %s\n", strerror(error_type));
-    return READING_FILE_FAIL;
+    free(data.data_segment);
+    memset(&data.data_segment, 0, sizeof(data.data_segment));
+    data.readFileError = READING_FILE_FAIL;
+    return data;
   }
 
-  int current_char;
+  char current_char = 0;
   int data_segment_size = 1024;
   int counter = 0;
-  while ((current_char = getc(file)) != EOF)
+  while ((current_char = fgetc(file)) != EOF)
   {
-
     if (counter < (int)(data_segment_size * 0.8))
     {
-      (*data_segment)[counter] = current_char;
-      (*data_segment)[counter + 1] = '\0';
+      data.data_segment[counter] = current_char;
     }
     else
     {
       char* new_datasegment = NULL;
       data_segment_size *= 2;
 
-      new_datasegment = (char*)realloc(*data_segment, data_segment_size);
+      new_datasegment = (char*)realloc(data.data_segment, sizeof(char) * data_segment_size);
       if (new_datasegment == NULL)
       {
         printf("[ERR] out of memory\n");
-        free(*data_segment);
-        return OUT_OF_MEMORY;
+        free(data.data_segment);
+        data.memoryError = OUT_OF_MEMORY;
+        return data;
       }
-      *data_segment = new_datasegment;
-      (*data_segment)[counter] = current_char;
-      (*data_segment)[counter + 1] = '\0';
+      data.data_segment = new_datasegment;
+      data.data_segment[counter] = current_char;
     }
     counter++;
   }
+  data.data_segment[counter] = '\0';
   fclose(file);
-  return SUCCESS;
+  return data;
 }
 Input readStd()
 {
