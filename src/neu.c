@@ -44,11 +44,14 @@ typedef struct{
   char* data_segment;
   int readFileError;
   int memoryError;
+  int falseArguments;
 }Data;
 
 typedef struct{
   int* breakPoints;
   int breakPointSize;
+  int memoryError;
+  int falseArguments;
 }BreakPoint;
 
 Data readCodeFromFile(Data data_segment, char* name);
@@ -57,6 +60,9 @@ BreakPoint addBreakPoint(BreakPoint points, int programCounter);
 void freeAll(char** input, int countInpMalloc, int* breakPoints);
 int* bubbleSortPoints(int* breakPoints, int size);
 int comparePoints(int* breakPoints, int size, int programCounter);
+int commandShow(Data data, Input input, BreakPoint points);
+BreakPoint commandBreak(Input input, BreakPoint points);
+Data commandLoad(Data data, Input input, BreakPoint points);
 //-----------------------------------------------------------------------------
 //
 /// The main program
@@ -72,13 +78,8 @@ int comparePoints(int* breakPoints, int size, int programCounter);
 ///
 int main(int argc, char* argv[])
 {
-  Data data;
-  BreakPoint points;
-  points.breakPoints = NULL;
-  points.breakPointSize = 0;
-  data.data_segment = NULL;
-  data.memoryError = 0;
-  data.readFileError = 0;
+  Data data = {NULL, 0, 0, 0};
+  BreakPoint points = {NULL, 0, 0 , 0};
   int return_value = SUCCESS;
 
   if (argc == 3)
@@ -111,13 +112,9 @@ int main(int argc, char* argv[])
     Input input;
     printf("esp> ");
     input = readStd();
-    // Hier ist es kritisch
-//    int b = 0;
-//    b++;
-//    if(b == 2)
-//      input.error = OUT_OF_MEMORY;
     if(input.error == OUT_OF_MEMORY)
     {
+      freeAll(input.inputString, input.inputRange, points.breakPoints);
       return OUT_OF_MEMORY;
     }
     if(input.inputRange < 1)
@@ -128,11 +125,6 @@ int main(int argc, char* argv[])
     }
     if(strcmp(input.inputString[0], "quit") == 0)
     {
-        int i = 0;
-        for(; i < points.breakPointSize; i++)
-        {
-          printf("%d ", points.breakPoints[i]);
-        }
       freeAll(input.inputString, input.inputRange, points.breakPoints);
       if(data.data_segment != NULL)
         free(data.data_segment);
@@ -141,108 +133,35 @@ int main(int argc, char* argv[])
     }
     if(strcmp(input.inputString[0], "load") == 0)
     {
-      if(data.data_segment != NULL)
-      {
-      	free(data.data_segment);
-      }
-      if(input.inputRange < 2)
-      {
-        printf("[ERR] wrong parameter count\n");
-        freeAll(input.inputString, input.inputRange, NULL);
+      data = commandLoad(data, input, points);
+      if(data.falseArguments == FALSE_ARGUMENTS)
         continue;
-      }
-      data = readCodeFromFile(data, input.inputString[1]);
-      if(data.memoryError == OUT_OF_MEMORY)
-      {
-        free(data.data_segment);
-        freeAll(input.inputString, input.inputRange, points.breakPoints);
+      else if(data.memoryError == OUT_OF_MEMORY)
         return OUT_OF_MEMORY;
-      }
-      if(data.readFileError == READING_FILE_FAIL)
-      {
-        free(data.data_segment);
-        freeAll(input.inputString, input.inputRange, points.breakPoints);
+      else if(data.readFileError == READING_FILE_FAIL)
         return READING_FILE_FAIL;
-      }
     }
     if(strcmp(input.inputString[0], "break") == 0)
     {
-      if(input.inputRange < 2)
-      {
-        printf("[ERR] wrong parameter count\n");
-        freeAll(input.inputString, input.inputRange, NULL);
+      points = commandBreak(input, points);
+      if(points.falseArguments == FALSE_ARGUMENTS)
         continue;
-      }else{
-        int programCounter = 0;
-        int counter = 0;
-        while(input.inputString[1][counter] != '\0')
-        {
-          if(isalpha(input.inputString[1][counter]))
-            programCounter = -1;
-          counter++;
-        }
-        if(programCounter == -1)
-        {
-          printf("[ERR] wrong parameter count\n");
-          freeAll(input.inputString, input.inputRange, NULL);
-          continue;
-        }else{
-          programCounter = atoi(input.inputString[1]);
-          if(comparePoints(points.breakPoints, points.breakPointSize, programCounter))
-          {
-            freeAll(input.inputString, input.inputRange, NULL);
-            continue;
-          }
-        }
-        points = addBreakPoint(points, programCounter);
-        if(points.breakPoints == NULL)
-        {
-          freeAll(input.inputString, input.inputRange, NULL);
-          points.breakPointSize++;
-          return OUT_OF_MEMORY;
-        }else{
-          
-          points.breakPointSize++;
-          points.breakPoints = bubbleSortPoints(points.breakPoints, points.breakPointSize);
-        }
-      }
+      else if(points.memoryError == OUT_OF_MEMORY)
+        return OUT_OF_MEMORY;
     }
     if(strcmp(input.inputString[0], "show") == 0)
-      {
-        int number = 0;
-        int counter;
-        if(data.data_segment == NULL)
-        {
-          printf("[ERR] no program loaded\n");
-          freeAll(input.inputString, input.inputRange, points.breakPoints);
-          return OUT_OF_MEMORY;
-        }
-        if(input.inputRange < 2)
-        {
-          for(counter = 0; counter < 10; counter++)
-          {
-            if(data.data_segment[counter] == '\0')
-              break;
-            printf("%c", data.data_segment[counter]);
-          }
-          printf("\n");
-        }else{
-          if((number = atoi(input.inputString[1])) != 0)
-          {
-            for(counter = 0; counter < number; counter++)
-            {
-              if(data.data_segment[counter] == '\0')
-                break;
-              printf("%c", data.data_segment[counter]);
-            }
-            printf("\n");
-          }
-        }
-      }
-      if(strcmp(input.inputString[0],"run") == 0)
-      {
-        printf("This is the run function!\n");    //do something
-      }
+    {
+      if(commandShow(data, input, points) == OUT_OF_MEMORY)
+        break;
+      else if(commandShow(data, input, points) == READING_FILE_FAIL)
+        return READING_FILE_FAIL;
+      else if(commandShow(data, input, points) == OUT_OF_MEMORY)
+        return OUT_OF_MEMORY;
+    }
+    if(strcmp(input.inputString[0],"run") == 0)
+    {
+      printf("This is the run function!\n");    //do something
+    }
     freeAll(input.inputString, input.inputRange, NULL);
   }
     return SUCCESS;
@@ -254,12 +173,114 @@ int main(int argc, char* argv[])
   }
   
   puts(data.data_segment);
-  getchar();
   free(data.data_segment);
-  free(points.breakPoints);
+  getchar();
   return return_value;
 }
+Data commandLoad(Data data, Input input, BreakPoint points)
+{
+  if(data.data_segment != NULL)
+  {
+    free(data.data_segment);
+  }
+  if(input.inputRange < 2)
+  {
+    printf("[ERR] wrong parameter count\n");
+    freeAll(input.inputString, input.inputRange, NULL);
+    data.falseArguments = FALSE_ARGUMENTS;
+    return data;
+  }
+  data = readCodeFromFile(data, input.inputString[1]);
 
+  if(data.memoryError == OUT_OF_MEMORY)
+  {
+    free(data.data_segment);
+    freeAll(input.inputString, input.inputRange, points.breakPoints);
+    data.memoryError = OUT_OF_MEMORY;
+    return data;
+  }
+  if(data.readFileError == READING_FILE_FAIL)
+  {
+    free(data.data_segment);
+    freeAll(input.inputString, input.inputRange, points.breakPoints);
+    data.readFileError = READING_FILE_FAIL;
+    return data;
+  }
+  return data;
+}
+BreakPoint commandBreak(Input input, BreakPoint points) {
+  int programCounter = 0;
+  int counter = 0;
+  if (input.inputRange < 2) {
+    printf("[ERR] wrong parameter count\n");
+    freeAll(input.inputString, input.inputRange, NULL);
+    points.falseArguments = FALSE_ARGUMENTS;
+    return points;
+  } else {
+    while (input.inputString[1][counter] != '\0') {
+      if (isalpha(input.inputString[1][counter]))
+        programCounter = -1;
+      counter++;
+    }
+    if (programCounter == -1) {
+      printf("[ERR] wrong parameter count\n");
+      freeAll(input.inputString, input.inputRange, NULL);
+      points.falseArguments = FALSE_ARGUMENTS;
+      return points;
+    } else {
+      programCounter = atoi(input.inputString[1]);
+      if (comparePoints(points.breakPoints, points.breakPointSize, programCounter)) {
+        freeAll(input.inputString, input.inputRange, NULL);
+        points.falseArguments = FALSE_ARGUMENTS;
+        return points;
+      }
+    }
+    points = addBreakPoint(points, programCounter);
+    if (points.breakPoints == NULL) {
+      freeAll(input.inputString, input.inputRange, NULL);
+      points.breakPointSize++;
+      points.memoryError = OUT_OF_MEMORY;
+      return points;
+    } else {
+
+      points.breakPointSize++;
+      points.breakPoints = bubbleSortPoints(points.breakPoints, points.breakPointSize);
+    }
+  }
+  return points;
+}
+int commandShow(Data data, Input input, BreakPoint points){
+  int number = 0;
+  int counter;
+  if(data.data_segment == NULL)
+  {
+    printf("[ERR] no program loaded\n");
+    freeAll(input.inputString, input.inputRange, points.breakPoints);
+    return OUT_OF_MEMORY;
+  }
+  if(input.inputRange < 2)
+  {
+    for(counter = 0; counter < 10; counter++)
+    {
+      if(data.data_segment[counter] == '\0')
+        return SUCCESS;
+      printf("%c", data.data_segment[counter]);
+    }
+    printf("\n");
+  }else{
+    if((number = atoi(input.inputString[1])) != 0)
+    {
+      for(counter = 0; counter < number; counter++)
+      {
+        if(data.data_segment[counter] == '\0')
+          return SUCCESS;
+        printf("%c", data.data_segment[counter]);
+      }
+      printf("\n");
+    }
+  }
+  return SUCCESS;
+}
 Data readCodeFromFile(Data data, char* name)
 {
   data.data_segment = (char*) malloc(sizeof(char) * 1024);
