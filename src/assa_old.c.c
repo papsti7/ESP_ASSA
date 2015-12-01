@@ -49,9 +49,6 @@ typedef struct {
   int number_of_loops_;
   int last_stop_in_code;
   unsigned char* last_program_counter_stop_;
-  int data_loaded_;
-  int** bracket_index_;
-  int end_reached_;
 } Data;
 
 typedef struct {
@@ -72,7 +69,6 @@ int createBracketIndex(int*** bracket_index, int number_of_loops);
 int checkIfEqalWithBreakPoint(int current_command_counter, int** break_points);
 int getCommandAndArgs(Input* input);
 int deleteBracketIndex(int*** bracket_index, int number_of_loops);
-int setBreakPoint(int** break_points, int point_pos);
 
 //-----------------------------------------------------------------------------
 //
@@ -91,6 +87,17 @@ int setBreakPoint(int** break_points, int point_pos);
 int main(int argc, char* argv[])
 {
   Data data;
+  data.data_segment_ = NULL;
+  data.break_points_ = NULL;
+  data.break_points_ = (int*) malloc(sizeof (int) * 3);
+  data.break_points_[0] = 5;
+  data.break_points_[1] = 60;
+  data.break_points_[2] = -2;
+  data.code_length_ = 0;
+  data.data_segment_size_ = 1024;
+  data.number_of_loops_ = 0;
+  data.last_stop_in_code = 0;
+  data.last_program_counter_stop_ = NULL;
   int return_value = SUCCESS;
 
   if (argc == 3)
@@ -109,7 +116,6 @@ int main(int argc, char* argv[])
   }
   else if (argc == 1)
   {
-
     /*-----START DEBUG MODE-----*/
     int debug_mode_on = TRUE;
     while(debug_mode_on == TRUE)
@@ -118,15 +124,12 @@ int main(int argc, char* argv[])
       Input input;
       input.args_ = NULL;
 
-      //input need to be freed !!!!!!!!!
+
       if((return_value = getCommandAndArgs(&input)) == OUT_OF_MEMORY)
         return return_value;
 
-      if(return_value == END_OF_FILE)
-        return return_value;
-
       printf("command: %s\n", input.command_);
-      
+      //printf("arg: %s\n", input.args_[0]);
       
     
       if(strcmp(input.command_, "load") == TRUE)
@@ -143,35 +146,21 @@ int main(int argc, char* argv[])
             return return_value;
           else if(return_value == READING_FILE_FAIL)
           {
-            //need to be freed here(INPUT!!))
             continue;
           }
         }
         
-        
+        //-----------------parse should be here!!!!!!!------------------
         if (checkCodeCorrectness(data.data_segment_, &(data.number_of_loops_)) != SUCCESS)
         {
           printf("[ERR] parsing of input failed\n");
-          //here is a leak -> the input is not be freed after this continue!!!!!
           continue;
         }
         
-        
-        data.bracket_index_ = NULL;
-        if (createBracketIndex(&data.bracket_index_, data.number_of_loops_) != SUCCESS)
-          return_value = OUT_OF_MEMORY;
-
-        parseCode(data.data_segment_, &data.bracket_index_, data.number_of_loops_);
-        
-        
-        data.data_loaded_ = TRUE;
       }
       else if(strcmp(input.command_, "run") == TRUE)
       { 
-        if(data.data_loaded_ == TRUE && data.end_reached_ == FALSE)
-          return_value = runCode(&data);
-        else
-          printf("[ERR] no program loaded\n");
+        return_value = runCode(&data);
         if (return_value == OUT_OF_MEMORY || return_value == END_OF_FILE)
         {
           debug_mode_on = FALSE;
@@ -182,29 +171,6 @@ int main(int argc, char* argv[])
         printf("Bye.\n");
         debug_mode_on = FALSE;
       }
-      else if (strcmp(input.command_, "break") == TRUE)
-      {
-        if (input.args_count_ == 0)
-        {
-          printf("[ERR] wrong parameter count\n");
-          free(input.command_);
-          continue;
-        }
-        if (data.data_loaded_ == TRUE && data.end_reached_ == FALSE)
-        {
-          int break_point = atoi(input.args_[0]);
-          if ((return_value = setBreakPoint(&data.break_points_, break_point)) != SUCCESS)
-            return return_value;
-        }
-        else
-        {
-          printf("[ERR] no program loaded\n");
-        }
-          
-        
-        //is a leak above !!!
-      }
-      
       
       
       //free the input
@@ -221,8 +187,6 @@ int main(int argc, char* argv[])
     printf("[ERR] usage: ./assa [-e brainfuck_filnename]\n");
     return FALSE_ARGUMENTS;
   }
-  //Can not quit if no memory was allocated for brackets!!!!!!!!!!!
-  deleteBracketIndex(&data.bracket_index_, data.number_of_loops_);
   free(data.data_segment_);
   free(data.break_points_);
   data.data_segment_ = NULL;
@@ -233,16 +197,6 @@ int main(int argc, char* argv[])
 
 int readCodeFromFile(Data* data, char* name)
 {
-  data->data_segment_ = NULL;
-  data->break_points_ = NULL;
-  data->code_length_ = 0;
-  data->data_segment_size_ = 1024;
-  data->number_of_loops_ = 0;
-  data->last_stop_in_code = 0;
-  data->last_program_counter_stop_ = NULL;
-  data->data_loaded_ = FALSE;
-  data->end_reached_ = FALSE;
-
   data->data_segment_ = (unsigned char*) calloc(1024, sizeof (unsigned char));
   if (data->data_segment_ == NULL)
   {
@@ -360,6 +314,15 @@ int checkCommandOrComment(unsigned char current_char)
 int runCode(Data* data)
 {
 
+  /*THIS HOLE PART SHOULD BE IN LOAD!*/
+  int** bracket_index = NULL;
+  if (createBracketIndex(&bracket_index, data->number_of_loops_) != SUCCESS)
+    return OUT_OF_MEMORY;
+
+  parseCode(data->data_segment_, &bracket_index, data->number_of_loops_);
+  //--------------------------------------------------------------------------
+
+
   /*
   //--------------------------------------------------------------------------------------
   // TODO: implement run function! 
@@ -383,8 +346,8 @@ int runCode(Data* data)
 
   int current_command_counter = data->last_stop_in_code;
   
-  
-  while ((data->data_segment_)[current_command_counter] != '\0' && (checkIfEqalWithBreakPoint(current_command_counter, &data->break_points_) == FALSE))
+  char eof;
+  while ((eof = (data->data_segment_)[current_command_counter]) != '\0' && (checkIfEqalWithBreakPoint(current_command_counter, &data->break_points_) == FALSE))
   {
     if (program_counter >= ((data->data_segment_) + data->data_segment_size_ - 1))
     {
@@ -395,8 +358,8 @@ int runCode(Data* data)
       if (new_data_segment == NULL)
       {
         printf("[ERR] out of memory\n");
-      
-        deleteBracketIndex(&data->bracket_index_, data->number_of_loops_);
+        //Do THIS IN A FUNCTION!!!!_______________
+        deleteBracketIndex(&bracket_index, data->number_of_loops_);
         return OUT_OF_MEMORY;
       }
 
@@ -437,14 +400,14 @@ int runCode(Data* data)
 
       if (*program_counter == 0)
       {
-        int index_of_current_command = getIndexOfBracket(data->bracket_index_, data->number_of_loops_, current_command_counter, OPEN);
-        current_command_counter = data->bracket_index_[index_of_current_command][CLOSE];
+        int index_of_current_command = getIndexOfBracket(bracket_index, data->number_of_loops_, current_command_counter, OPEN);
+        current_command_counter = bracket_index[index_of_current_command][CLOSE];
       }
       break;
     case ']':
     {
-      int index_of_current_command = getIndexOfBracket(data->bracket_index_, data->number_of_loops_, current_command_counter, CLOSE);
-      current_command_counter = data->bracket_index_[(index_of_current_command)][OPEN];
+      int index_of_current_command = getIndexOfBracket(bracket_index, data->number_of_loops_, current_command_counter, CLOSE);
+      current_command_counter = bracket_index[(index_of_current_command)][OPEN];
       current_command_counter--;
       break;
     }
@@ -457,16 +420,16 @@ int runCode(Data* data)
    
   }
   
-    
-
+  
   data->last_stop_in_code = current_command_counter;
   data->last_program_counter_stop_ = program_counter;
   
-  if(current_command_counter == (data->code_length_ - 1))
-    data->end_reached_ = TRUE;
-  
-  //deleteBracketIndex(&data->bracket_index_, data->number_of_loops_);
-  
+  //DO THIS IN A FUNCTION!!!!
+  deleteBracketIndex(&bracket_index, data->number_of_loops_);
+  /* ---Problem with compare with nullbyte
+  if(strcmp(eof, "\0") == TRUE)
+  return END_OF_FILE;
+  */
   return SUCCESS;
 }
 
@@ -529,7 +492,7 @@ int createBracketIndex(int*** bracket_index, int number_of_loops)
   int col_count;
   for (col_count = 0; col_count < number_of_loops; col_count++)
   {
-    (*bracket_index)[col_count] = (int*) calloc(2, sizeof(int));
+    (*bracket_index)[col_count] = (int*) calloc(2, sizeof ((**bracket_index)[col_count]));
     if ((*bracket_index)[col_count] == NULL)
     {
       printf("[ERR] out of memory\n");
@@ -539,23 +502,16 @@ int createBracketIndex(int*** bracket_index, int number_of_loops)
         free((*bracket_index)[col_count]);
         (*bracket_index)[col_count--] = NULL;
       }
-      free(*bracket_index);
-      *bracket_index = NULL;
       return OUT_OF_MEMORY;
     }
   }
   return SUCCESS;
 }
-//THERE IS A PROBLEM WITH THE BREAK POINTS BUT I DONT KNOW WHERE!!!! MAYBE IN RUNCODE???
+
 int checkIfEqalWithBreakPoint(int current_command_counter, int** break_points)
 {
   int counter = 0;
   int current_break_point = 0;
-  if (*break_points == NULL)
-  {
-    return FALSE;
-  }
-    
   while((current_break_point = (*break_points)[counter]) != -2)
   {
     if (current_break_point == NEUTRAL)
@@ -578,7 +534,7 @@ int checkIfEqalWithBreakPoint(int current_command_counter, int** break_points)
 
 int getCommandAndArgs(Input* input)
 {
-  int current_char;
+  char current_char;
   input->args_count_ = 0;
   input->args_ = NULL;
   int command_setted = FALSE;
@@ -599,8 +555,6 @@ int getCommandAndArgs(Input* input)
   //starts the real read from stdin
   while((current_char = (char)getchar()) != '\n')
   {
-    if(current_char == EOF)
-      return END_OF_FILE;
     //check if there is space or more
     if(current_char == ' ' && last_char_was_space == FALSE)
     {
@@ -698,60 +652,8 @@ int deleteBracketIndex(int*** bracket_index, int number_of_loops)
     free((*bracket_index)[counter]);
     (*bracket_index)[counter] = NULL;
   }
-    
-  return SUCCESS;
-}
-
-int setBreakPoint(int** break_points, int point_pos)
-{
-  int counter = 0;
-  if (*break_points != NULL)
-  {
-    for (counter = 0; (*break_points)[counter] != -2; counter++)
-      ;
-  }
+  free(*bracket_index);
+  *bracket_index = NULL;
   
-  int array_size = counter;
-
-  if (array_size == 0)
-  {
-    *break_points = (int*)malloc(sizeof(int) * 2);
-    if (*break_points == NULL)
-    {
-      printf("[ERR] out of memory\n");
-      return OUT_OF_MEMORY;
-    }
-    (*break_points)[0] = point_pos;
-    (*break_points)[1] = -2;
-    return SUCCESS;
-  }
-  else
-  {
-    for (counter = 0; counter < array_size; counter++)
-    {
-      if((*break_points)[counter] == point_pos)
-        return SUCCESS;
-    }
-    
-    for (counter = 0; counter < array_size; counter++)
-    {
-      if ((*break_points)[counter] == -1)
-      {
-        (*break_points)[counter] == point_pos;
-        return SUCCESS;
-      }
-    }
-    
-    int* new_array = (int*)realloc(*break_points, sizeof(int) * (array_size + 1));
-    if (new_array == NULL)
-    {
-      printf("[ERR] out of memory\n");
-      return OUT_OF_MEMORY;
-    }
-    *break_points = new_array;
-    (*break_points)[array_size - 2] == point_pos;
-    (*break_points)[array_size - 1] == -2;
-
-    return SUCCESS;
-  }
+  return SUCCESS;
 }
