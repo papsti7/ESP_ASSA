@@ -285,6 +285,7 @@ int main(int argc, char* argv[])
         }
         eval_data.insert_pos_in_string_ = data.last_stop_in_code;
         insertString(&data.data_segment_, &eval_data);
+        data.eval_stop_point_ = data.last_stop_in_code + eval_data.insert_string_len_;
         if (setBreakPoint(&data.break_points_, data.last_stop_in_code + eval_data.insert_string_len_) == OUT_OF_MEMORY)
         {
           //need to be freed!
@@ -300,7 +301,8 @@ int main(int argc, char* argv[])
         cutOutString(&data.data_segment_, &eval_data);
       }
       //free the input
-      free(input.command_);
+      //free(input.command_);
+      input.command_ = NULL;
       int counter;
       for(counter = 0; counter < input.args_count_; counter++)
       {
