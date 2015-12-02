@@ -9,7 +9,7 @@
 //
 // Authors: Stefan Papst 1430868
 //          Harald Deutschmann XXXXXX
-//          Julia Heritsch XXXXXX
+//          Julia Heritsch 1430814
 //
 // Latest Changes: 22.11.2015 (by Stefan Papst)
 //------------------------------------------------------------------------------
@@ -23,8 +23,6 @@
 
 //for error message in fopen()
 //#include <errno.h>
-
-
 
 #define FAILED -1
 #define SUCCESS 0
@@ -76,6 +74,9 @@ int deleteBracketIndex(int*** bracket_index, int number_of_loops);
 int setBreakPoint(int** break_points, int point_pos);
 int checkSteps(int* steps);
 int showCode(char* data_segment, int current_command_counter, int* number_to_show);
+int showMemory(Data* data, int position, char* type);
+int changeMemory(Data* data, int position, int value);
+void toBinary(int value, int bitsCount, char* output);
 
 //-----------------------------------------------------------------------------
 //
@@ -248,8 +249,80 @@ int main(int argc, char* argv[])
         else
           printf("[ERR] no program loaded\n");
       }
-      
-      
+      //-----------------------------------------------------------------------------
+      //
+      /// Command: memory [number] [type]
+      /// Outputs the data segment at the specified position as hex/int/bin/char
+      ///
+      /// @param number The specified position
+      /// @param type The type of the output: 'hex', 'int', 'bin' und 'char'
+      ///
+      /// @default number The current position
+      /// @default type 'hex'
+      ///
+      else if (strcmp(input.command_, "memory") == TRUE)
+      {
+        if (data.data_loaded_ == TRUE)
+        {
+          char* default_type = "hex";
+
+          int position = 0;
+          char type[4];
+
+          if(input.args_count_ >= 2)
+          {
+            //load type
+            sscanf(input.args_[1], "%s", type);
+          }
+          if(input.args_count_ >= 1)
+          {
+            //load number
+            sscanf(input.args_[0], "%d", &position);
+          }
+          if(input.args_count_ == 0) 
+          {
+            //load defaults
+            position = 0; //TODO: current position
+            strcpy(type, default_type);
+          }
+
+          return_value = showMemory(&data, position, type);
+        }
+        else
+          printf("[ERR] no program loaded\n");
+      }
+      //-----------------------------------------------------------------------------
+      //
+      /// Command: change [number] [hex_byte]
+      /// Changes the byte in the data storage
+      ///
+      /// @param number The specified position
+      /// @param hex_byte The value
+      ///
+      /// @default number The current position
+      /// @default hex_byte 0x00
+      ///
+      else if (strcmp(input.command_, "change") == TRUE)
+      {
+        if (data.data_loaded_ == TRUE)
+        {
+          int position = 0;
+          int hex_byte = 0;
+
+          if(input.args_count_ >= 2)
+          {
+            //load hex_byte
+            sscanf(input.args_[1], "%x", &hex_byte);
+          }
+          if(input.args_count_ >= 1)
+          {
+            //load number
+            sscanf(input.args_[0], "%d", &position);
+          }
+
+          return_value = changeMemory(&data, position, hex_byte);
+        }
+      }
       
       //free the input
       free(input.command_);
@@ -841,5 +914,60 @@ int showCode(char* data_segment, int current_command_counter, int* number_to_sho
     return SUCCESS;
   else
     return FAILED;
+}
+
+int showMemory(Data* data, int position, char* type)
+{
+  //Description for user
+  char description[100];
+  char valueAsType[100];
+
+  char value = data->data_segment_[data->code_length_ + position + 1];
+
+  if(strcmp(type, "hex") == TRUE)
+  {
+    strcpy(description, "Hex");
+    sprintf(valueAsType, "%x", value);
+  }
+  else if(strcmp(type, "int") == TRUE)
+  {
+    strcpy(description, "Integer");
+    sprintf(valueAsType, "%d", value);
+  }
+  else if(strcmp(type, "bin") == TRUE)
+  {
+    strcpy(description, "Binary");
+    toBinary((int) value, 8, valueAsType);
+  }
+  else if(strcmp(type, "char") == TRUE)
+  {
+    strcpy(description, "Character");
+    valueAsType[0] = value;
+    valueAsType[1] = '\0';
+  }
+  else
+  {
+    //no valid type
+    return SUCCESS;
+  }
+
+  printf("%s at %d: %s\n", description, position, valueAsType);
+  return SUCCESS;
+}
+
+int changeMemory(Data* data, int position, int value)
+{
+  data->data_segment_[data->code_length_ + position + 1] = value;
+  return SUCCESS;
+}
+
+void toBinary(int value, int bitsCount, char* output)
+{
+  int i;
+  output[bitsCount] = '\0';
+  for (i = bitsCount - 1; i >= 0; --i, value >>= 1)
+  {
+    output[i] = (value & 1) + '0';
+  }
 }
 
