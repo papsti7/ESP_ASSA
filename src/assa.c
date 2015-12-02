@@ -26,7 +26,7 @@
 
 
 
-
+#define FAILED -1
 #define SUCCESS 0
 #define FALSE_ARGUMENTS 1
 #define OUT_OF_MEMORY 2
@@ -75,6 +75,7 @@ int getCommandAndArgs(Input* input);
 int deleteBracketIndex(int*** bracket_index, int number_of_loops);
 int setBreakPoint(int** break_points, int point_pos);
 int checkSteps(int* steps);
+int showCode(char* data_segment, int current_command_counter, int* number_to_show);
 
 //-----------------------------------------------------------------------------
 //
@@ -227,6 +228,25 @@ int main(int argc, char* argv[])
           debug_mode_on = FALSE;
         }
         //is a leak above !!!
+      }
+      else if (strcmp(input.command_, "show") == TRUE)
+      {
+       if (data.data_loaded_ == TRUE && data.end_reached_ == FALSE)
+        {
+         int number_to_show = 0;
+          if (input.args_count_ == 0)
+          {
+            number_to_show = 10;
+          }
+          else
+          {
+            number_to_show = atoi(input.args_[0]);
+          }
+          //reference maybe not needed
+          return_value = showCode(data.data_segment_, data.last_stop_in_code, &number_to_show);
+        }
+        else
+          printf("[ERR] no program loaded\n");
       }
       
       
@@ -801,5 +821,25 @@ int checkSteps(int* steps)
     --*steps;
     return FALSE;
   }
+}
+
+int showCode(char* data_segment, int current_command_counter, int* number_to_show)
+{
+  if(*number_to_show > 0)
+  {
+    int counter;
+    for( counter = 0; counter < *number_to_show; counter++)
+    {
+      if(data_segment[current_command_counter + counter] == '\0')
+        return SUCCESS;
+      printf("%c", data_segment[current_command_counter + counter]);
+    }
+    printf("\n");
+    return SUCCESS;
+  }   
+  else if(*number_to_show == 0)
+    return SUCCESS;
+  else
+    return FAILED;
 }
 
