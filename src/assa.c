@@ -282,7 +282,7 @@ int main(int argc, char* argv[])
           if(input.args_count_ == 0) 
           {
             //load defaults
-            position = 0; //TODO: current position
+            position = data.last_stop_in_code - data.code_length_;
             strcpy(type, default_type);
           }
 
@@ -318,6 +318,11 @@ int main(int argc, char* argv[])
           {
             //load number
             sscanf(input.args_[0], "%d", &position);
+          }
+          if(input.args_count_ == 0)
+          {
+            //load defaults
+            position = data.last_stop_in_code - data.code_length_;
           }
 
           return_value = changeMemory(&data, position, hex_byte);
@@ -951,7 +956,7 @@ int showMemory(Data* data, int position, char* type)
     return SUCCESS;
   }
 
-  printf("%s at %d: %s\n", description, position, valueAsType);
+  printf("%s at %d: %s\n", description, position + 1, valueAsType);
   return SUCCESS;
 }
 
