@@ -52,6 +52,7 @@ typedef struct {
   int data_loaded_;
   int** bracket_index_;
   int end_reached_;
+  int step_counter_;
 } Data;
 
 typedef struct {
@@ -73,6 +74,7 @@ int checkIfEqalWithBreakPoint(int current_command_counter, int** break_points);
 int getCommandAndArgs(Input* input);
 int deleteBracketIndex(int*** bracket_index, int number_of_loops);
 int setBreakPoint(int** break_points, int point_pos);
+int checkSteps(int* steps);
 
 //-----------------------------------------------------------------------------
 //
@@ -388,6 +390,10 @@ int runCode(Data* data)
   
   while ((data->data_segment_)[current_command_counter] != '\0' && (checkIfEqalWithBreakPoint(current_command_counter, &data->break_points_) == FALSE))
   {
+    if (checkSteps(&data->step_counter_) == TRUE)
+    {
+      break;
+    }
     if (program_counter >= ((data->data_segment_) + data->data_segment_size_ - 1))
     {
       printf("out of memory now\n");
@@ -757,3 +763,9 @@ int setBreakPoint(int** break_points, int point_pos)
     return SUCCESS;
   }
 }
+
+int checkSteps(int* steps)
+{
+  
+}
+
