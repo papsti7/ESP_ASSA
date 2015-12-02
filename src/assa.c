@@ -53,6 +53,7 @@ typedef struct {
   int** bracket_index_;
   int end_reached_;
   int step_counter_;
+  int eval_stop_point_;
 } Data;
 
 typedef struct {
@@ -60,6 +61,12 @@ typedef struct {
   char** args_;
   int args_count_;
 } Input;
+
+typedef struct {
+  int insert_pos_in_string_;
+  int insert_string_len_;
+  char* string_to_insert_;
+} EvalData;
 
 
 /*------------HEADER NEED TO BE DONE-----------*/
@@ -76,6 +83,9 @@ int deleteBracketIndex(int*** bracket_index, int number_of_loops);
 int setBreakPoint(int** break_points, int point_pos);
 int checkSteps(int* steps);
 int showCode(char* data_segment, int current_command_counter, int* number_to_show);
+int insertString(char** string, EvalData* eval_data);
+int cutOutString(char** string, EvalData* eval_data);
+int initData(Data* data);
 
 //-----------------------------------------------------------------------------
 //
@@ -94,6 +104,7 @@ int showCode(char* data_segment, int current_command_counter, int* number_to_sho
 int main(int argc, char* argv[])
 {
   Data data;
+  EvalData eval_data;
   int return_value = SUCCESS;
 
   if (argc == 3)
@@ -248,9 +259,46 @@ int main(int argc, char* argv[])
         else
           printf("[ERR] no program loaded\n");
       }
+      else if (strcmp(input.command_, "eval") == TRUE)
+      {
+        if (data.data_loaded_ == FALSE)
+        {
+          initData(&data);
+          data.last_program_counter_stop_ = data.data_segment_[(int)(1024 * 0.8) + 1];
+          data.data_loaded_ = TRUE;
+          data.end_reached_ = FALSE;
+        }
+        
+        if (input.args_count_ == 0)
+        {
+          //maybe a leak here!!!
+          printf("[ERR] wrong parameter count\n");
+          continue;
+        }
+          printf("Command: %s\n", input.command_);
+
+        eval_data.string_to_insert_ = input.args_[0];
+        if ((eval_data.insert_string_len_ = strlen(eval_data.string_to_insert_)) > 80)
+        {
+          eval_data.insert_string_len_ = 81;
+          eval_data.string_to_insert_[80] = '\0';
+        }
+        eval_data.insert_pos_in_string_ = data.last_stop_in_code;
+        insertString(&data.data_segment_, &eval_data);
+        if (setBreakPoint(&data.break_points_, data.last_stop_in_code + eval_data.insert_string_len_) == OUT_OF_MEMORY)
+        {
+          //need to be freed!
+          return OUT_OF_MEMORY;
+        }
+        return_value = runCode(&data);
+     
+      }
       
-      
-      
+      //check if eval is finished
+      if (data.last_stop_in_code == data.eval_stop_point_)
+      {
+        cutOutString(&data.data_segment_, &eval_data);
+      }
       //free the input
       free(input.command_);
       int counter;
@@ -277,35 +325,14 @@ int main(int argc, char* argv[])
 
 int readCodeFromFile(Data* data, char* name)
 {
-  data->data_segment_ = NULL;
-  data->break_points_ = NULL;
-  data->code_length_ = 0;
-  data->data_segment_size_ = 1024;
-  data->number_of_loops_ = 0;
-  data->last_stop_in_code = 0;
-  data->last_program_counter_stop_ = NULL;
-  data->data_loaded_ = FALSE;
-  data->end_reached_ = FALSE;
-  data->step_counter_ = NEUTRAL;
-
-  data->data_segment_ = (unsigned char*) calloc(1024, sizeof (unsigned char));
-  if (data->data_segment_ == NULL)
-  {
-    printf("[ERR] out of memory\n");
-    return OUT_OF_MEMORY;
-  }
-  //set end of string
-  data->data_segment_[(int) (1024 * 0.8) + 1] = '\0';
-
+  initData(data);
   //open file
   FILE* file;
-  //errno_t error_type;
-  //error_type = fopen_s(&file, name, "r");
+  
   file = fopen(name, "r");
   if (file == NULL)
   {
     printf("[ERR] reading the file failed\n");
-    //printf("errno type: %s\n", strerror(error_type));
     return READING_FILE_FAIL;
   }
 
@@ -339,7 +366,7 @@ int readCodeFromFile(Data* data, char* name)
         (data->data_segment_)[counter] = current_char;
         (data->data_segment_)[counter + 1] = '\0';
       }
-      data->code_length_ = (++counter) + 1;
+      data->code_length_ = (++counter) + 85;
     }
   }
   //puts(*data_segment);
@@ -830,8 +857,12 @@ int showCode(char* data_segment, int current_command_counter, int* number_to_sho
     int counter;
     for( counter = 0; counter < *number_to_show; counter++)
     {
-      if(data_segment[current_command_counter + counter] == '\0')
+      if (data_segment[current_command_counter + counter] == '\0')
+      {
+        printf("\n");
         return SUCCESS;
+      }
+        
       printf("%c", data_segment[current_command_counter + counter]);
     }
     printf("\n");
@@ -841,5 +872,85 @@ int showCode(char* data_segment, int current_command_counter, int* number_to_sho
     return SUCCESS;
   else
     return FAILED;
+}
+
+int insertString(char** string, EvalData* eval_data)
+{
+  eval_data->insert_string_len_ = strlen(eval_data->string_to_insert_);
+
+  char* string_copy = (char*)calloc(1, sizeof(*string));
+  if (string_copy == NULL)
+  {
+    printf("[ERR] out of memory\n");
+    return OUT_OF_MEMORY;
+  }
+  
+  strcpy(string_copy, *string);
+  int counter;
+  for (counter = 0; counter < eval_data->insert_string_len_; counter++)
+  {
+    (*string)[eval_data->insert_pos_in_string_ + counter] = eval_data->string_to_insert_[counter];
+  }
+
+  counter = 0;
+  while (string_copy[eval_data->insert_pos_in_string_ + counter] != '\0')
+  {
+    (*string)[eval_data->insert_pos_in_string_ + eval_data->insert_string_len_ + counter] = string_copy[eval_data->insert_pos_in_string_ + counter];
+    counter++;
+  }
+
+  (*string)[eval_data->insert_pos_in_string_ + eval_data->insert_string_len_ + counter] = '\0';
+
+  return SUCCESS;
+}
+
+int cutOutString(char** string, EvalData* eval_data)
+{
+  int counter = eval_data->insert_pos_in_string_;
+  int old_string_len = strlen(*string) - eval_data->insert_string_len_;
+  while (counter < old_string_len)
+  {
+    (*string)[counter] = (*string)[counter + eval_data->insert_string_len_];
+    counter++;
+  }
+  string[counter] = '\0';
+
+  //because the input args will be freed outside of the function
+  eval_data->string_to_insert_ = NULL;
+  eval_data->insert_pos_in_string_ = 0;
+  eval_data->insert_string_len_ = 0;
+
+  return SUCCESS;
+}
+
+int initData(Data* data)
+{
+  data->data_segment_ = NULL;
+  data->break_points_ = NULL;
+  data->code_length_ = 0;
+  data->data_segment_size_ = 1024;
+  data->number_of_loops_ = 0;
+  data->last_stop_in_code = 0;
+  data->last_program_counter_stop_ = NULL;
+  data->data_loaded_ = FALSE;
+  data->end_reached_ = FALSE;
+  data->step_counter_ = NEUTRAL;
+  data->eval_stop_point_ = NEUTRAL;
+
+  if (data->data_segment_ != NULL)
+  {
+    free(data->data_segment_);
+    data->data_segment_ = NULL;
+  }
+  data->data_segment_ = (unsigned char*)calloc(1024, sizeof(unsigned char));
+  if (data->data_segment_ == NULL)
+  {
+    printf("[ERR] out of memory\n");
+    return OUT_OF_MEMORY;
+  }
+  //set end of string
+  data->data_segment_[(int)(1024 * 0.8) + 1] = '\0';
+
+  return SUCCESS;
 }
 
