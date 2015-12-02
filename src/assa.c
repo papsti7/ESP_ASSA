@@ -183,7 +183,7 @@ int main(int argc, char* argv[])
       {
         printf("Bye.\n");
         debug_mode_on = FALSE;
-      }
+      }//----check negativ values!!-------------------
       else if (strcmp(input.command_, "break") == TRUE)
       {
         if (input.args_count_ == 0)
@@ -197,15 +197,35 @@ int main(int argc, char* argv[])
           int break_point = atoi(input.args_[0]);
           if ((return_value = setBreakPoint(&data.break_points_, break_point)) != SUCCESS)
             return return_value;
-
-          
         }
         else
         {
           printf("[ERR] no program loaded\n");
         }
+        //is a leak above !!!
+      }
+      else if (strcmp(input.command_, "step") == TRUE)
+      {
+        if (data.data_loaded_ == TRUE && data.end_reached_ == FALSE)
+        {
+          if (input.args_count_ == 0)
+          {
+            data.step_counter_ = 1;
+          }
+          else
+          {
+            data.step_counter_ = atoi(input.args_[0]);
+          }
           
+          return_value = runCode(&data);
+        }
+        else
+          printf("[ERR] no program loaded\n");
         
+        if (return_value == OUT_OF_MEMORY || return_value == END_OF_FILE)
+        {
+          debug_mode_on = FALSE;
+        }
         //is a leak above !!!
       }
       
@@ -246,6 +266,7 @@ int readCodeFromFile(Data* data, char* name)
   data->last_program_counter_stop_ = NULL;
   data->data_loaded_ = FALSE;
   data->end_reached_ = FALSE;
+  data->step_counter_ = NEUTRAL;
 
   data->data_segment_ = (unsigned char*) calloc(1024, sizeof (unsigned char));
   if (data->data_segment_ == NULL)
@@ -766,6 +787,19 @@ int setBreakPoint(int** break_points, int point_pos)
 
 int checkSteps(int* steps)
 {
-  
+  if(*steps == NEUTRAL)
+  {
+    return NEUTRAL;
+  }
+  else if(*steps == 0)
+  {
+    *steps = NEUTRAL;
+    return TRUE;
+  }
+  else
+  {
+    --*steps;
+    return FALSE;
+  }
 }
 
