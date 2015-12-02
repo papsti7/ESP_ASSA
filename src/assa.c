@@ -195,6 +195,8 @@ int main(int argc, char* argv[])
           int break_point = atoi(input.args_[0]);
           if ((return_value = setBreakPoint(&data.break_points_, break_point)) != SUCCESS)
             return return_value;
+
+          
         }
         else
         {
@@ -546,7 +548,7 @@ int createBracketIndex(int*** bracket_index, int number_of_loops)
   }
   return SUCCESS;
 }
-//THERE IS A PROBLEM WITH THE BREAK POINTS BUT I DONT KNOW WHERE!!!! MAYBE IN RUNCODE???
+
 int checkIfEqalWithBreakPoint(int current_command_counter, int** break_points)
 {
   int counter = 0;
@@ -707,8 +709,8 @@ int setBreakPoint(int** break_points, int point_pos)
   int counter = 0;
   if (*break_points != NULL)
   {
-    for (counter = 0; (*break_points)[counter] != -2; counter++)
-      ;
+    for (counter = 1; (*break_points)[counter - 1] != -2; counter++)
+      printf("breakpoint[%d] = %d\n", counter - 1, (*break_points)[counter - 1]);
   }
   
   int array_size = counter;
@@ -737,7 +739,7 @@ int setBreakPoint(int** break_points, int point_pos)
     {
       if ((*break_points)[counter] == -1)
       {
-        (*break_points)[counter] == point_pos;
+        (*break_points)[counter] = point_pos;
         return SUCCESS;
       }
     }
@@ -749,8 +751,8 @@ int setBreakPoint(int** break_points, int point_pos)
       return OUT_OF_MEMORY;
     }
     *break_points = new_array;
-    (*break_points)[array_size - 2] == point_pos;
-    (*break_points)[array_size - 1] == -2;
+    (*break_points)[array_size - 1] = point_pos;
+    (*break_points)[array_size] = -2;
 
     return SUCCESS;
   }
