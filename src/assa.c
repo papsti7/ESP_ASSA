@@ -77,14 +77,14 @@ int runCode(Data* data);
 int parseCode(unsigned char* data_segment, int*** brackets, int number_of_loops);
 int getIndexOfBracket(int** bracket_index, int size_of_array, int current_command_counter, int open_or_close);
 int createBracketIndex(int*** bracket_index, int number_of_loops);
-int checkIfEqalWithBreakPoint(int current_command_counter, int** break_points);
+int checkIfEqalWithBreakPoint(int current_command_counter, int** break_points, int* eval_stop_point);
 int getCommandAndArgs(Input* input);
 int deleteBracketIndex(int*** bracket_index, int number_of_loops);
 int setBreakPoint(int** break_points, int point_pos);
 int checkSteps(int* steps);
 int showCode(char* data_segment, int current_command_counter, int* number_to_show);
-int insertString(char** string, EvalData* eval_data);
-int cutOutString(char** string, EvalData* eval_data);
+int insertString(unsigned char** string, EvalData* eval_data);
+int cutOutString(unsigned char** string, EvalData* eval_data, int* last_stop_in_code);
 int initData(Data* data);
 
 //-----------------------------------------------------------------------------
@@ -264,7 +264,8 @@ int main(int argc, char* argv[])
         if (data.data_loaded_ == FALSE)
         {
           initData(&data);
-          data.last_program_counter_stop_ = data.data_segment_[(int)(1024 * 0.8) + 1];
+          data.code_length_ = (int)(1024 * 0.8) + 1;
+          data.last_program_counter_stop_ = data.data_segment_ + data.code_length_;
           data.data_loaded_ = TRUE;
           data.end_reached_ = FALSE;
         }
@@ -275,7 +276,7 @@ int main(int argc, char* argv[])
           printf("[ERR] wrong parameter count\n");
           continue;
         }
-          printf("Command: %s\n", input.command_);
+          //printf("Command: %s\n", input.command_);
 
         eval_data.string_to_insert_ = input.args_[0];
         if ((eval_data.insert_string_len_ = strlen(eval_data.string_to_insert_)) > 80)
@@ -284,22 +285,14 @@ int main(int argc, char* argv[])
           eval_data.string_to_insert_[80] = '\0';
         }
         eval_data.insert_pos_in_string_ = data.last_stop_in_code;
-        insertString(&data.data_segment_, &eval_data);
+        insertString(&(data.data_segment_), &eval_data);
         data.eval_stop_point_ = data.last_stop_in_code + eval_data.insert_string_len_;
-        if (setBreakPoint(&data.break_points_, data.last_stop_in_code + eval_data.insert_string_len_) == OUT_OF_MEMORY)
-        {
-          //need to be freed!
-          return OUT_OF_MEMORY;
-        }
+        
         return_value = runCode(&data);
+        cutOutString(&data.data_segment_, &eval_data, &data.last_stop_in_code);
      
       }
-      
-      //check if eval is finished
-      if (data.last_stop_in_code == data.eval_stop_point_)
-      {
-        cutOutString(&data.data_segment_, &eval_data);
-      }
+        
       //free the input
       //free(input.command_);
       input.command_ = NULL;
@@ -458,8 +451,9 @@ int runCode(Data* data)
   int current_command_counter = data->last_stop_in_code;
   
   
-  while ((data->data_segment_)[current_command_counter] != '\0' && (checkIfEqalWithBreakPoint(current_command_counter, &data->break_points_) == FALSE))
+  while ((data->data_segment_)[current_command_counter] != '\0' && (checkIfEqalWithBreakPoint(current_command_counter, &data->break_points_, &data->eval_stop_point_) == FALSE))
   {
+    
     if (checkSteps(&data->step_counter_) == TRUE)
     {
       break;
@@ -543,7 +537,6 @@ int runCode(Data* data)
   if(current_command_counter == (data->code_length_ - 1))
     data->end_reached_ = TRUE;
   
-  //deleteBracketIndex(&data->bracket_index_, data->number_of_loops_);
   
   return SUCCESS;
 }
@@ -625,10 +618,18 @@ int createBracketIndex(int*** bracket_index, int number_of_loops)
   return SUCCESS;
 }
 
-int checkIfEqalWithBreakPoint(int current_command_counter, int** break_points)
+int checkIfEqalWithBreakPoint(int current_command_counter, int** break_points, int* eval_stop_point)
 {
   int counter = 0;
   int current_break_point = 0;
+  if(*eval_stop_point != NEUTRAL)
+  {
+    if(current_command_counter == *eval_stop_point)
+    {
+      *eval_stop_point = NEUTRAL;
+      return TRUE;
+    }
+  }
   if (*break_points == NULL)
   {
     return FALSE;
@@ -876,7 +877,7 @@ int showCode(char* data_segment, int current_command_counter, int* number_to_sho
     return FAILED;
 }
 
-int insertString(char** string, EvalData* eval_data)
+int insertString(unsigned char** string, EvalData* eval_data)
 {
   eval_data->insert_string_len_ = strlen(eval_data->string_to_insert_);
 
@@ -906,7 +907,7 @@ int insertString(char** string, EvalData* eval_data)
   return SUCCESS;
 }
 
-int cutOutString(char** string, EvalData* eval_data)
+int cutOutString(unsigned char** string, EvalData* eval_data, int* last_stop_in_code)
 {
   int counter = eval_data->insert_pos_in_string_;
   int old_string_len = strlen(*string) - eval_data->insert_string_len_;
@@ -916,12 +917,15 @@ int cutOutString(char** string, EvalData* eval_data)
     counter++;
   }
   string[counter] = '\0';
-
+  
+  *last_stop_in_code -= eval_data->insert_string_len_;
+  
   //because the input args will be freed outside of the function
   eval_data->string_to_insert_ = NULL;
   eval_data->insert_pos_in_string_ = 0;
   eval_data->insert_string_len_ = 0;
-
+  
+  
   return SUCCESS;
 }
 
