@@ -91,8 +91,9 @@ int insertString(unsigned char** string, EvalData* eval_data);
 int cutOutString(unsigned char** string, EvalData* eval_data, int* last_stop_in_code);
 int initData(Environment* data);
 int showMemory(Environment* data, int position, char* type);
-int changeMemory(Environment* data, int position, unsigned char value);
+int changeMemory(Environment* data, int position, unsigned int value);
 void toBinary(int value, int bitsCount, char* output);
+void freeInput(Input* input);
 
 //-----------------------------------------------------------------------------
 //
@@ -111,6 +112,10 @@ void toBinary(int value, int bitsCount, char* output);
 int main(int argc, char* argv[])
 {
   Environment data;
+  data.break_points_ = NULL;
+  data.bracket_index_ = NULL;
+  data.code_segment_ = NULL;
+  data.data_segment_ = NULL;
   EvalData eval_data;
   eval_data.insert_pos_in_string_ = NEUTRAL;
   eval_data.insert_string_len_ = NEUTRAL;
@@ -123,13 +128,11 @@ int main(int argc, char* argv[])
   {
     if (!strcmp(argv[1], "-e"))
     {
-      data.break_points_ = NULL;
-      data.bracket_index_ = NULL;
-      data.code_segment_ = NULL;
-      data.data_segment_ = NULL;
-      return_value = readCodeFromFile(&data, argv[2]);
+      if ((return_value = readCodeFromFile(&data, argv[2])) != SUCCESS)
+      {
+        return return_value;
+      }
       runCode(&data, data.bracket_index_, data.number_of_loops_);
-
     }
     else
     {
@@ -150,25 +153,25 @@ int main(int argc, char* argv[])
       
       //input need to be freed !!!!!!!!!
       if((return_value = getCommandAndArgs(&input)) == OUT_OF_MEMORY)
-        return return_value;
+        break;
 
-      if(return_value == END_OF_FILE)
-        return return_value;
-
-      //printf("command: %s\n", input.command_);
-      int counter2;
-      for (counter2 = 0; counter2 < input.args_count_; counter2++)
+      if (return_value == END_OF_FILE)
       {
-        puts(input.args_[counter2]);
+        freeInput(&input);
+        break;
       }
-      
-    
+        
+
       if(strcmp(input.command_, "load") == TRUE)
       {
         if(input.args_count_ == 0 || input.args_[0][0] == '\0')
         {
           printf("[ERR] wrong parameter count\n");
-          free(input.command_);
+          if (input.command_ != NULL)
+          {
+            free(input.command_);
+            input.command_ = NULL;
+          }
           continue;
         }
         if (data.data_loaded_ == TRUE)
@@ -196,16 +199,21 @@ int main(int argc, char* argv[])
           if (data.data_segment_ == NULL)
           {
             printf("[ERR] out of memory\n");
-            return OUT_OF_MEMORY;
+            freeInput(&input);
+            return_value = OUT_OF_MEMORY;
+            break;
           }
         }
         if((return_value = readCodeFromFile(&data, input.args_[0])) != SUCCESS)
         {
-          if(return_value == OUT_OF_MEMORY)
-            return return_value;
+          if (return_value == OUT_OF_MEMORY)
+          {
+            freeInput(&input);
+            break;
+          }
           else if(return_value == READING_FILE_FAIL)
           {
-            //need to be freed here(INPUT!!))
+            freeInput(&input);
             continue;
           }
         }
@@ -213,29 +221,39 @@ int main(int argc, char* argv[])
         if (checkCodeCorrectness(data.code_segment_, &(data.number_of_loops_)) != SUCCESS)
         {
           printf("[ERR] parsing of input failed\n");
-          //here is a leak -> the input is not be freed after this continue!!!!!
+          freeInput(&input);
           continue;
         } 
-        data.bracket_index_ = NULL;
         if (createBracketIndex(&data.bracket_index_, data.number_of_loops_) != SUCCESS)
+        {
+          freeInput(&input);
           return_value = OUT_OF_MEMORY;
-
-        parseCode(data.code_segment_, &data.bracket_index_, data.number_of_loops_);
+          break;
+        }
+        if ((return_value = parseCode(data.code_segment_, &data.bracket_index_, data.number_of_loops_)) != SUCCESS)
+        {
+          freeInput(&input);
+          if (return_value == OUT_OF_MEMORY)
+          {
+            break;
+          }
+          else
+          {
+            return_value = SUCCESS;
+            continue;
+          }
+        }
         data.data_loaded_ = TRUE;
       }
       else if(strcmp(input.command_, "run") == TRUE)
       { 
         if (data.data_loaded_ == TRUE && data.end_reached_ == FALSE)
         {
-          return_value = runCode(&data, data.bracket_index_, data.number_of_loops_);
-        }
-          
+          runCode(&data, data.bracket_index_, data.number_of_loops_);
+        }   
         else
           printf("[ERR] no program loaded\n");
-        if (return_value == OUT_OF_MEMORY || return_value == END_OF_FILE)
-        {
-          debug_mode_on = FALSE;
-        }
+
       }
       else if (strcmp(input.command_, "quit") == TRUE)
       {
@@ -257,13 +275,15 @@ int main(int argc, char* argv[])
             break_point *= -1;
 
           if ((return_value = setBreakPoint(&data.break_points_, break_point)) != SUCCESS)
-            return return_value;
+          {
+            free(&input);
+            break;
+          }  
         }
         else
         {
           printf("[ERR] no program loaded\n");
         }
-        //is a leak above !!!
       }
       else if (strcmp(input.command_, "step") == TRUE)
       {
@@ -279,22 +299,16 @@ int main(int argc, char* argv[])
             if(data.step_counter_ < 0)
                 data.step_counter_ *= -1;
           }
-          return_value = runCode(&data, data.bracket_index_, data.number_of_loops_);
+          runCode(&data, data.bracket_index_, data.number_of_loops_);
         }
         else
           printf("[ERR] no program loaded\n");
-        
-        if (return_value == OUT_OF_MEMORY || return_value == END_OF_FILE)
-        {
-          debug_mode_on = FALSE;
-        }
-        //is a leak above !!!
       }
       else if (strcmp(input.command_, "show") == TRUE)
       {
        if (data.data_loaded_ == TRUE && data.end_reached_ == FALSE)
         {
-         int number_to_show = 0;
+          int number_to_show = 0;
           if (input.args_count_ == 0)
           {
             number_to_show = 10;
@@ -305,8 +319,8 @@ int main(int argc, char* argv[])
             if(number_to_show < 0)
               number_to_show *= -1;
           }
-          //reference maybe not needed
-          return_value = showCode(data.code_segment_, data.last_stop_in_code, &number_to_show);
+          
+          showCode(data.code_segment_, data.last_stop_in_code, &number_to_show);
         }
         else
           printf("[ERR] no program loaded\n");
@@ -315,8 +329,8 @@ int main(int argc, char* argv[])
       {
         if (input.args_count_ == 0)
         {
-          //maybe a leak here!!!
           printf("[ERR] wrong parameter count\n");
+          freeInput(&input);
           continue;
         }
         if (data.data_loaded_ != TRUE)
@@ -339,13 +353,17 @@ int main(int argc, char* argv[])
           if (data.data_segment_ == NULL)
           {
             printf("[ERR] out of memory\n");
-            return OUT_OF_MEMORY;
+            freeInput(&input);
+            return_value = OUT_OF_MEMORY;
+            break;
           }
           data.code_segment_ = (unsigned char*)calloc(85, sizeof(char));
           if (data.code_segment_ == NULL)
           {
             printf("[ERR] out of memory\n");
-            return OUT_OF_MEMORY;
+            freeInput(&input);
+            return_value = OUT_OF_MEMORY;
+            break;
           }
           data.code_segment_size_ = 85; 
         }
@@ -355,15 +373,30 @@ int main(int argc, char* argv[])
         if (checkCodeCorrectness(eval_data.string_to_insert_, &(eval_data.number_of_loops_)) != SUCCESS)
         {
           printf("[ERR] parsing of input failed\n");
-          //here is a leak -> the input is not be freed after this continue!!!!!
+          freeInput(&input);
           continue;
         }
 
-        eval_data.bracket_index_ = NULL;
         if (createBracketIndex(&eval_data.bracket_index_, eval_data.number_of_loops_) != SUCCESS)
+        {
+          freeInput(&input);
           return_value = OUT_OF_MEMORY;
+          break;
+        }
 
-        parseCode(eval_data.string_to_insert_, &eval_data.bracket_index_, eval_data.number_of_loops_);
+        if ((return_value = parseCode(eval_data.string_to_insert_, &eval_data.bracket_index_, eval_data.number_of_loops_)) != SUCCESS)
+        {
+          freeInput(&input);
+          if (return_value == OUT_OF_MEMORY)
+          {
+            break;
+          }
+          else
+          {
+            return_value = SUCCESS;
+            continue;
+          }
+        }
 
         if ((eval_data.insert_string_len_ = (strlen(eval_data.string_to_insert_) + 1)) > 80)
         {
@@ -371,23 +404,26 @@ int main(int argc, char* argv[])
           eval_data.string_to_insert_[80] = '\0';
         }
         eval_data.insert_pos_in_string_ = data.last_stop_in_code;
-        insertString(&(data.code_segment_), &eval_data);
-        return_value = runCode(&data, eval_data.bracket_index_, eval_data.number_of_loops_);
+        if (insertString(&(data.code_segment_), &eval_data) != SUCCESS)
+        {
+          return_value = OUT_OF_MEMORY;
+          freeInput(&input);
+          break;
+        }
+        runCode(&data, eval_data.bracket_index_, eval_data.number_of_loops_);
         cutOutString(&data.code_segment_, &eval_data, &data.last_stop_in_code);
       }
       else if (strcmp(input.command_, "memory") == TRUE)
       {
         if (data.data_loaded_ == TRUE)
         {
-          char* default_type = "hex";
-
-          int position = 0;
-          char type[4];
+          int position = data.program_counter_index_;
+          char type[5] = "hex\0";
 
           if (input.args_count_ >= 2)
           {
             //load type
-            sscanf(input.args_[1], "%s", type);
+            sscanf(input.args_[1], "%4s", type);
           }
           if (input.args_count_ >= 1)
           {
@@ -399,17 +435,13 @@ int main(int argc, char* argv[])
             }
             //invalid entry has to be checked!!!
           }
-          if (input.args_count_ == 0)
-          {
-            //load defaults
-            position = 0;
-            strcpy(type, default_type);
-          }
+       
           if (position < 0 || position >= data.data_segment_size_)
           {
-            return SUCCESS;
+            freeInput(&input);
+            continue;
           }
-          return_value = showMemory(&data, position, type);
+          showMemory(&data, position, type);
         }
         else
           printf("[ERR] no program loaded\n");
@@ -429,22 +461,23 @@ int main(int argc, char* argv[])
       {
         if (data.data_loaded_ == TRUE)
         {
-          int position = 0;
-          unsigned char hex_byte = 0;
+          int position = data.program_counter_index_;
+          unsigned int hex_byte = 0;
 
           if (input.args_count_ >= 2)
           {
             //load hex_byte
-            sscanf(input.args_[1], "%x", (unsigned int*)&hex_byte);
+            sscanf(input.args_[1], "%2x", (unsigned int*)&hex_byte);
           }
           if (input.args_count_ >= 1)
           {
             //load number
             sscanf(input.args_[0], "%d", &position);
           }
-          if (position < 0 || position >= data.data_segment_size_)
+          if (position < 0 || position >= (data.data_segment_size_ - 1))
           {
-            return SUCCESS;
+            freeInput(&input);
+            continue;
           }
           return_value = changeMemory(&data, position, hex_byte);
         }
@@ -452,28 +485,7 @@ int main(int argc, char* argv[])
           printf("[ERR] no program loaded\n");
       }
 
-      //free the input
-      if (input.command_ != NULL)
-      {
-        free(input.command_);
-        input.command_ = NULL;
-      }
-      
-      int counter;
-      for(counter = 0; counter < input.args_count_; counter++)
-      {
-        if (input.args_[counter] != NULL)
-        {
-          free(input.args_[counter]);
-          input.args_[counter] = NULL;
-        }
-        
-      }
-      if (input.args_ != NULL)
-      {
-        free(input.args_);
-        input.args_ = NULL;
-      }
+      freeInput(&input);
     }
   }
   else
@@ -481,7 +493,7 @@ int main(int argc, char* argv[])
     printf("[ERR] usage: ./assa [-e brainfuck_filnename]\n");
     return FALSE_ARGUMENTS;
   }
-  //Can not quit if no memory was allocated for brackets!!!!!!!!!!!
+  
   if (data.data_loaded_ == TRUE)
   {
    initData(&data);
@@ -494,7 +506,7 @@ int readCodeFromFile(Environment* data, char* name)
 {
   //open file
   FILE* file;
-  file = fopen(name, "r");
+  file = fopen(name, "r");;
   if (file == NULL)
   {
     printf("[ERR] reading the file failed\n");
@@ -515,7 +527,7 @@ int readCodeFromFile(Environment* data, char* name)
   while ((current_char = getc(file)) != EOF)
   {
     if (checkCommandOrComment(current_char) == TRUE)
-    {//because of \0 and eval string
+    {//-85 because of \0 and eval string
       if (counter < (data->code_segment_size_ - 85))
       {
         (data->code_segment_)[counter] = current_char;
@@ -727,6 +739,7 @@ int parseCode(unsigned char* code_segment, int*** brackets, int number_of_loops)
     counter++;
   }
   free(bracket_queue);
+  printf("[ERR] parsing of input failed\n");
   return PARSE_FILE_ERROR;
 }
 
@@ -841,15 +854,18 @@ int getCommandAndArgs(Input* input)
         if (input->args_ == NULL)
         {
           printf("[ERR] out of memory\n");
+          input->args_count_ = 0;
+          freeInput(input);
           return OUT_OF_MEMORY;
         }
       }
       else
       {
-        char** new_memory_for_strings = (char**)realloc(input->args_, input->args_count_ + 1);
+        char** new_memory_for_strings = (char**)realloc(input->args_, sizeof(char*) * (input->args_count_ + 1));
         if (new_memory_for_strings == NULL)
         {
           printf("[ERR] out of memory\n");
+          freeInput(input);
           return OUT_OF_MEMORY;
         }
         input->args_ = new_memory_for_strings;
@@ -861,6 +877,7 @@ int getCommandAndArgs(Input* input)
       if(input->args_[input->args_count_] == NULL)
       {
         printf("[ERR] out of memory\n");
+        freeInput(input);
         return OUT_OF_MEMORY;
       }
       input->args_[input->args_count_][0] = '\0';
@@ -894,6 +911,8 @@ int getCommandAndArgs(Input* input)
         if(new_memory_for_input == NULL)
         {
           printf("[ERR] out of memory\n");
+          input->args_count_--;
+          freeInput(input);
           return OUT_OF_MEMORY;
         }
         input->command_ = new_memory_for_input;
@@ -919,6 +938,8 @@ int getCommandAndArgs(Input* input)
         if(new_memory_for_input == NULL)
         {
           printf("[ERR] out of memory\n");
+          input->args_count_--;
+          freeInput(input);
           return OUT_OF_MEMORY;
         }
         input->args_[input->args_count_ - 1] = new_memory_for_input;
@@ -929,7 +950,6 @@ int getCommandAndArgs(Input* input)
       }
     }
   }
-  
   return SUCCESS;
 }
 
@@ -1024,7 +1044,7 @@ int showCode(unsigned char* code_segment, int current_command_counter, int* numb
   if(*number_to_show > 0)
   {
     int counter;
-    for( counter = 0; counter < *number_to_show; counter++)
+    for(counter = 0; counter < *number_to_show; counter++)
     {
       if (code_segment[current_command_counter + counter] == '\0')
       {
@@ -1037,10 +1057,9 @@ int showCode(unsigned char* code_segment, int current_command_counter, int* numb
     printf("\n");
     return SUCCESS;
   }   
-  else if(*number_to_show == 0)
-    return SUCCESS;
   else
-    return FAILED;
+    return SUCCESS;
+  
 }
 
 int insertString(unsigned char** string, EvalData* eval_data)
@@ -1178,9 +1197,9 @@ int showMemory(Environment* data, int position, char* type)
   return SUCCESS;
 }
 
-int changeMemory(Environment* data, int position, unsigned char value)
+int changeMemory(Environment* data, int position, unsigned int value)
 {
-  data->data_segment_[position] = value;
+  data->data_segment_[position] = (unsigned char)value;
   return SUCCESS;
 }
 
@@ -1191,5 +1210,31 @@ void toBinary(int value, int bitsCount, char* output)
   for (counter = bitsCount - 1; counter >= 0; --counter, value >>= 1)
   {
     output[counter] = (value & 1) + '0';
+  }
+}
+
+void freeInput(Input* input)
+{
+  //free the input
+  if (input->command_ != NULL)
+  {
+    free(input->command_);
+    input->command_ = NULL;
+  }
+
+  int counter;
+  for (counter = 0; counter < input->args_count_; counter++)
+  {
+    if (input->args_[counter] != NULL)
+    {
+      free(input->args_[counter]);
+      input->args_[counter] = NULL;
+    }
+
+  }
+  if (input->args_ != NULL)
+  {
+    free(input->args_);
+    input->args_ = NULL;
   }
 }
