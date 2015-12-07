@@ -116,6 +116,7 @@ int main(int argc, char* argv[])
   data.bracket_index_ = NULL;
   data.code_segment_ = NULL;
   data.data_segment_ = NULL;
+  data.data_loaded_ = FALSE;
   EvalData eval_data;
   eval_data.insert_pos_in_string_ = NEUTRAL;
   eval_data.insert_string_len_ = NEUTRAL;
@@ -145,15 +146,19 @@ int main(int argc, char* argv[])
     Input input;
     input.args_ = NULL;
     input.command_ = NULL;
+    input.args_count_ = 0;
     /*-----START DEBUG MODE-----*/
     int debug_mode_on = TRUE;
     while(debug_mode_on == TRUE)
     {
       printf("esp> ");
       
-      //input need to be freed !!!!!!!!!
+      
       if((return_value = getCommandAndArgs(&input)) == OUT_OF_MEMORY)
+      {
+        freeInput(&input);
         break;
+      }
 
       if (return_value == END_OF_FILE)
       {
@@ -169,8 +174,7 @@ int main(int argc, char* argv[])
           printf("[ERR] wrong parameter count\n");
           if (input.command_ != NULL)
           {
-            free(input.command_);
-            input.command_ = NULL;
+            freeInput(&input);
           }
           continue;
         }
@@ -194,7 +198,7 @@ int main(int argc, char* argv[])
           data.end_reached_ = FALSE;
           data.step_counter_ = NEUTRAL;
           data.program_counter_index_ = 0;
-          setBreakPoint(&data.break_points_, 0);
+          setBreakPoint(&data.break_points_, -1);
           data.data_segment_ = (unsigned char*)calloc(data.data_segment_size_, sizeof(unsigned char));
           if (data.data_segment_ == NULL)
           {
@@ -265,7 +269,7 @@ int main(int argc, char* argv[])
         if (input.args_count_ == 0)
         {
           printf("[ERR] wrong parameter count\n");
-          free(input.command_);
+          freeInput(&input);
           continue;
         }
         if (data.data_loaded_ == TRUE && data.end_reached_ == FALSE)
@@ -276,7 +280,7 @@ int main(int argc, char* argv[])
 
           if ((return_value = setBreakPoint(&data.break_points_, break_point)) != SUCCESS)
           {
-            free(&input);
+            freeInput(&input);
             break;
           }  
         }
@@ -348,7 +352,7 @@ int main(int argc, char* argv[])
           data.end_reached_ = FALSE;
           data.step_counter_ = NEUTRAL;
           data.program_counter_index_ = 0;
-          setBreakPoint(&data.break_points_, 0);
+          setBreakPoint(&data.break_points_, -1);
           data.data_segment_ = (unsigned char*)calloc(data.data_segment_size_, sizeof(unsigned char));
           if (data.data_segment_ == NULL)
           {
@@ -357,7 +361,7 @@ int main(int argc, char* argv[])
             return_value = OUT_OF_MEMORY;
             break;
           }
-          data.code_segment_ = (unsigned char*)calloc(85, sizeof(char));
+          data.code_segment_ = (unsigned char*)calloc(85, sizeof(unsigned char));
           if (data.code_segment_ == NULL)
           {
             printf("[ERR] out of memory\n");
@@ -368,18 +372,30 @@ int main(int argc, char* argv[])
           data.code_segment_size_ = 85; 
         }
         int eval_len = strlen(input.args_[0]);
-        eval_data.string_to_insert_ = (unsigned char*) calloc(eval_len + 1, sizeof(unsigned char));
-        strcpy(eval_data.string_to_insert_, input.args_[0]);
+        eval_data.string_to_insert_ = (unsigned char*) malloc((eval_len + 1) * sizeof(unsigned char));
+        strcpy((char*)eval_data.string_to_insert_, input.args_[0]);
         if (checkCodeCorrectness(eval_data.string_to_insert_, &(eval_data.number_of_loops_)) != SUCCESS)
         {
           printf("[ERR] parsing of input failed\n");
           freeInput(&input);
+          if(eval_data.string_to_insert_ != NULL)
+          {
+            printf("String is freed!\n");
+            free(eval_data.string_to_insert_);
+            eval_data.string_to_insert_ = NULL;
+          }
           continue;
         }
 
         if (createBracketIndex(&eval_data.bracket_index_, eval_data.number_of_loops_) != SUCCESS)
         {
           freeInput(&input);
+          if(eval_data.string_to_insert_ != NULL)
+          {
+            printf("String is freed!\n");
+            free(eval_data.string_to_insert_);
+            eval_data.string_to_insert_ = NULL;
+          }
           return_value = OUT_OF_MEMORY;
           break;
         }
@@ -387,6 +403,12 @@ int main(int argc, char* argv[])
         if ((return_value = parseCode(eval_data.string_to_insert_, &eval_data.bracket_index_, eval_data.number_of_loops_)) != SUCCESS)
         {
           freeInput(&input);
+          if(eval_data.string_to_insert_ != NULL)
+          {
+            printf("String is freed!\n");
+            free(eval_data.string_to_insert_);
+            eval_data.string_to_insert_ = NULL;
+          }
           if (return_value == OUT_OF_MEMORY)
           {
             break;
@@ -398,7 +420,7 @@ int main(int argc, char* argv[])
           }
         }
 
-        if ((eval_data.insert_string_len_ = (strlen(eval_data.string_to_insert_) + 1)) > 80)
+        if ((eval_data.insert_string_len_ = (strlen((char*)eval_data.string_to_insert_) + 1)) > 80)
         {
           eval_data.insert_string_len_ = 81;
           eval_data.string_to_insert_[80] = '\0';
@@ -408,6 +430,12 @@ int main(int argc, char* argv[])
         {
           return_value = OUT_OF_MEMORY;
           freeInput(&input);
+          if(eval_data.string_to_insert_ != NULL)
+          {
+            printf("String is freed!\n");
+            free(eval_data.string_to_insert_);
+            eval_data.string_to_insert_ = NULL;
+          }
           break;
         }
         runCode(&data, eval_data.bracket_index_, eval_data.number_of_loops_);
@@ -496,9 +524,20 @@ int main(int argc, char* argv[])
   
   if (data.data_loaded_ == TRUE)
   {
+    printf("Is data loaded?\n");
    initData(&data);
+   free(data.data_segment_);
+   data.data_segment_ = NULL;
+   data.data_segment_size_ = 0;
   }
-
+  
+  if (data.break_points_ != NULL)
+  {
+    printf("should be freed!\n");
+    free(data.break_points_);
+    data.break_points_ = NULL;
+  }
+  
   return return_value;
 }
 
@@ -513,7 +552,7 @@ int readCodeFromFile(Environment* data, char* name)
     return READING_FILE_FAIL;
   }
   
-  data->code_segment_ = (char*)calloc(500, sizeof(char));
+  data->code_segment_ = (unsigned char*)calloc(500, sizeof(unsigned char));
   if (data->code_segment_ == NULL)
   {
     printf("[ERR] reading the file failed\n");
@@ -961,6 +1000,11 @@ int deleteBracketIndex(int*** bracket_index, int number_of_loops)
     free((*bracket_index)[counter]);
     (*bracket_index)[counter] = NULL;
   }
+  if((*bracket_index) != NULL)
+  {
+    free((*bracket_index));
+    *bracket_index = NULL;
+  }
     
   return SUCCESS;
 }
@@ -984,7 +1028,7 @@ int setBreakPoint(int** break_points, int point_pos)
       printf("[ERR] out of memory\n");
       return OUT_OF_MEMORY;
     }
-    if(point_pos != 0)
+    if(point_pos >= -1)
       (*break_points)[0] = point_pos;
 
     (*break_points)[1] = -2;
@@ -1064,7 +1108,7 @@ int showCode(unsigned char* code_segment, int current_command_counter, int* numb
 
 int insertString(unsigned char** string, EvalData* eval_data)
 {
-  eval_data->insert_string_len_ = strlen(eval_data->string_to_insert_) + 1;
+  eval_data->insert_string_len_ = strlen((char*)eval_data->string_to_insert_) + 1;
 
   unsigned char* string_copy = (unsigned char*)calloc(1, sizeof(*string));
   if (string_copy == NULL)
@@ -1073,7 +1117,7 @@ int insertString(unsigned char** string, EvalData* eval_data)
     return OUT_OF_MEMORY;
   }
   
-  strcpy(string_copy, *string);
+  strcpy((char*)string_copy, (char*)*string);
   int counter;
   for (counter = 0; counter < eval_data->insert_string_len_; counter++)
   {
@@ -1088,7 +1132,12 @@ int insertString(unsigned char** string, EvalData* eval_data)
   }
 
   (*string)[eval_data->insert_pos_in_string_ + eval_data->insert_string_len_ + counter] = '\0';
-
+  
+  if(string_copy != NULL)
+  {
+    free(string_copy);
+    string_copy = NULL;
+  }
   return SUCCESS;
 }
 
@@ -1106,8 +1155,12 @@ int cutOutString(unsigned char** string, EvalData* eval_data, int* last_stop_in_
   //because of nullbyte at the end of the insertstring
   *last_stop_in_code -= (eval_data->insert_string_len_ - 1);
   
-  //because the input args will be freed outside of the function
-  eval_data->string_to_insert_ = NULL;
+  if(eval_data->string_to_insert_ != NULL)
+  {
+    printf("String is freed!\n");
+    free(eval_data->string_to_insert_);
+    eval_data->string_to_insert_ = NULL;
+  }
   eval_data->insert_pos_in_string_ = NEUTRAL;
   eval_data->insert_string_len_ = NEUTRAL;
   
@@ -1121,7 +1174,7 @@ int initData(Environment* data)
     free(data->break_points_);
     data->break_points_ = NULL;
   }
-  setBreakPoint(&data->break_points_, 0);
+  setBreakPoint(&data->break_points_, -1);
   data->code_segment_size_ = 0;
   data->data_segment_size_ = 1024;
   data->last_stop_in_code = 0;
