@@ -1,14 +1,41 @@
 //
+<<<<<<< HEAD
+// This program is intended to interprete Brainfuck files and debug them.
+//
+// Gruppenbeispiel A
+//
+// Group: 4 study assistant Michael Schwarz
+//
+// Authors: Stefan Papst 1430868
+//          Harald Deutschmann XXXXXX
+//          Julia Heritsch XXXXXX
+//
 // Latest Changes: 08.12.2015 (by Stefan Papst)
+//------------------------------------------------------------------------------
+//
 /*this is a special flag in visual studio for secure function errors/ Can be commented if there is a error in gcc*/
+#define _CRT_SECURE_NO_WARNINGS
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+
 #define FAILED -1
+#define SUCCESS 0
+#define FALSE_ARGUMENTS 1
+#define OUT_OF_MEMORY 2
 #define PARSE_FILE_ERROR 3
+#define READING_FILE_FAIL 4
 #define END_OF_FILE 5
+
 #define TRUE 0
 #define FALSE 1
 #define NEUTRAL -1
+
 #define OPEN 0
 #define CLOSE 1
+
 #define COMMAND 0
 #define ARG 1
 
@@ -44,6 +71,8 @@ typedef struct {
   int number_of_loops_;
   int** bracket_index_;
 } EvalData;
+
+
 /*------------HEADER NEED TO BE DONE-----------*/
 int readCodeFromFile(Environment* data, char* name);
 int checkCodeCorrectness(unsigned char* code_segment, int* number_of_loops);
@@ -76,15 +105,24 @@ int changeCommand(Input* input, Environment* data);
 void handleDebugMode(Environment* data, EvalData* eval_data, int* return_value);
 void handleNormalMode(Environment* data, int* return_value, char* argv[]);
 int saveChartoCommandorArg(Input* input, char current_char, int* shell_count, int* allocated_size_for_string, int command_or_arg);
+
+//-----------------------------------------------------------------------------
 ///
+/// The main program
 /// This function checks, if the program is started in normal mode or in debug
 /// mode and then starts the right one.
+///
+/// @param argc The counter how many arguments are written on the commandline
+/// @param argv The value of the command line arguments
+///
 /// @return 0 SUCCESS 
 /// @return 1 FALSE_ARGUMENTS 
 /// @return 2 OUT_OF_MEMORY 
 /// @return 3 PARSE_FILE_ERROR 
 /// @return 4 READING_FILE_FAIL 
 //
+int main(int argc, char* argv[])
+{
   Environment data;
   data.break_points_ = NULL;
   data.bracket_index_ = NULL;
@@ -99,6 +137,10 @@ int saveChartoCommandorArg(Input* input, char current_char, int* shell_count, in
   eval_data.bracket_index_ = NULL;
   eval_data.number_of_loops_ = NEUTRAL;
   
+  int return_value = SUCCESS;
+
+  if (argc == 3)
+  {
     handleNormalMode(&data, &return_value, argv);
   }
   else if (argc == 1)
@@ -112,27 +154,46 @@ int saveChartoCommandorArg(Input* input, char current_char, int* shell_count, in
   } 
   
   if (data.data_loaded_ == TRUE)
+  {
    initData(&data);
    free(data.data_segment_);
    data.data_segment_ = NULL;
    data.data_segment_size_ = 0;
+  }
   
   if (data.break_points_ != NULL)
+  {
     free(data.break_points_);
     data.break_points_ = NULL;
+  }
+  
+  return return_value;
+}
+
 int readCodeFromFile(Environment* data, char* name)
+{
   //open file
   FILE* file;
   file = fopen(name, "r");;
   if (file == NULL)
+  {
     printf("[ERR] reading the file failed\n");
     return READING_FILE_FAIL;
+  }
   
   data->code_segment_ = (unsigned char*)calloc(500, sizeof(unsigned char));
   if (data->code_segment_ == NULL)
+  {
+    printf("[ERR] reading the file failed\n");
+    return READING_FILE_FAIL;
+  }
 
   data->code_segment_size_ = 500;
   data->code_length_ = 0;
+  int current_char;
+  int counter = 0;
+  while ((current_char = getc(file)) != EOF)
+  {
     if (checkCommandOrComment(current_char) == TRUE)
     {//-85 because of \0 and eval string
       if (counter < (data->code_segment_size_ - 85))
@@ -478,9 +539,14 @@ int getCommandAndArgs(Input* input)
       //most args are smaller than 4 + nullbyte
       input->args_[input->args_count_] = (char*) calloc(allocated_size_for_string, sizeof(char));
       if(input->args_[input->args_count_] == NULL)
+      {
+        printf("[ERR] out of memory\n");
         freeInput(input);
+        return OUT_OF_MEMORY;
+      }
       input->args_[input->args_count_][0] = '\0';
       input->args_count_++;
+      
       last_char_was_space = TRUE;
       shell_count = 0;
       continue;
@@ -488,6 +554,7 @@ int getCommandAndArgs(Input* input)
     else if(current_char == ' ' && last_char_was_space == TRUE)
     {
         return SUCCESS;
+    }
     //because the if's above would catch it
     last_char_was_space = FALSE;
     
@@ -642,6 +709,9 @@ int insertString(unsigned char** string, EvalData* eval_data)
   while (string_copy[eval_data->insert_pos_in_string_ + counter] != '\0')
   {
     (*string)[eval_data->insert_pos_in_string_ + eval_data->insert_string_len_ + counter] = string_copy[eval_data->insert_pos_in_string_ + counter];
+    counter++;
+  }
+
   (*string)[eval_data->insert_pos_in_string_ + eval_data->insert_string_len_ + counter] = '\0';
   
   if(string_copy != NULL)
@@ -1357,3 +1427,7 @@ int saveChartoCommandorArg(Input* input, char current_char, int* shell_count, in
       input->command_[*shell_count] = '\0';
     }
   }
+  return SUCCESS;
+}
+=======
+>>>>>>> master
