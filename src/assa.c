@@ -1,5 +1,4 @@
 //
-<<<<<<< HEAD
 // This program is intended to interprete Brainfuck files and debug them.
 //
 // Gruppenbeispiel A
@@ -1429,5 +1428,4 @@ int saveChartoCommandorArg(Input* input, char current_char, int* shell_count, in
   }
   return SUCCESS;
 }
-=======
->>>>>>> master
+
