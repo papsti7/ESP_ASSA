@@ -11,7 +11,7 @@
 //          Harald Deutschmann XXXXXX
 //          Julia Heritsch XXXXXX
 //
-// Latest Changes: 22.11.2015 (by Stefan Papst)
+// Latest Changes: 08.12.2015 (by Stefan Papst)
 //------------------------------------------------------------------------------
 //
 /*this is a special flag in visual studio for secure function errors/ Can be commented if there is a error in gcc*/
@@ -20,6 +20,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
 
 #define FAILED -1
 #define SUCCESS 0
@@ -36,6 +37,11 @@
 #define OPEN 0
 #define CLOSE 1
 
+#define COMMAND 0
+#define ARG 1
+
+
+//this struct contains all information about the program
 typedef struct {
   unsigned char* data_segment_;
   unsigned char* code_segment_;
@@ -52,13 +58,13 @@ typedef struct {
   int end_reached_;
   int step_counter_;
 } Environment;
-
+//this struct saves the command line
 typedef struct {
   char* command_;
   char** args_;
   int args_count_;
 } Input;
-
+//this struct is used for the evalCommand
 typedef struct {
   int insert_pos_in_string_;
   int insert_string_len_;
@@ -99,21 +105,23 @@ int memoryCommand(Input* input, Environment* data);
 int changeCommand(Input* input, Environment* data);
 void handleDebugMode(Environment* data, EvalData* eval_data, int* return_value);
 void handleNormalMode(Environment* data, int* return_value, char* argv[]);
+int saveChartoCommandorArg(Input* input, char current_char, int* shell_count, int* allocated_size_for_string, int command_or_arg);
 
 //-----------------------------------------------------------------------------
-//
+///
 /// The main program
-/// SOME TEXT
+/// This function checks, if the program is started in normal mode or in debug
+/// mode and then starts the right one.
 ///
 /// @param argc The counter how many arguments are written on the commandline
 /// @param argv The value of the command line arguments
 ///
-/// @return 0
-/// @return 1
-/// @return 2 
-/// @return 3
-///
-
+/// @return 0 SUCCESS 
+/// @return 1 FALSE_ARGUMENTS 
+/// @return 2 OUT_OF_MEMORY 
+/// @return 3 PARSE_FILE_ERROR 
+/// @return 4 READING_FILE_FAIL 
+//
 int main(int argc, char* argv[])
 {
   Environment data;
@@ -122,12 +130,14 @@ int main(int argc, char* argv[])
   data.code_segment_ = NULL;
   data.data_segment_ = NULL;
   data.data_loaded_ = FALSE;
+  
   EvalData eval_data;
   eval_data.insert_pos_in_string_ = NEUTRAL;
   eval_data.insert_string_len_ = NEUTRAL;
   eval_data.string_to_insert_ = NULL;
   eval_data.bracket_index_ = NULL;
   eval_data.number_of_loops_ = NEUTRAL;
+  
   int return_value = SUCCESS;
 
   if (argc == 3)
@@ -146,7 +156,6 @@ int main(int argc, char* argv[])
   
   if (data.data_loaded_ == TRUE)
   {
-    printf("Is data loaded?\n");
    initData(&data);
    free(data.data_segment_);
    data.data_segment_ = NULL;
@@ -155,7 +164,6 @@ int main(int argc, char* argv[])
   
   if (data.break_points_ != NULL)
   {
-    printf("should be freed!\n");
     free(data.break_points_);
     data.break_points_ = NULL;
   }
@@ -554,57 +562,13 @@ int getCommandAndArgs(Input* input)
     //check for right string to write.
     if(command_setted == FALSE)
     {
-      if((shell_count + 1) < allocated_size_for_string)
-      {
-        input->command_[shell_count] = current_char;
-        ++shell_count;
-        input->command_[shell_count] = '\0';
-      }
-      else
-      {
-        //allocated_size_for_string = last size of memoryblock
-        allocated_size_for_string *= 2;
-        char* new_memory_for_input = (char*)realloc(input->command_, allocated_size_for_string);
-        if(new_memory_for_input == NULL)
-        {
-          printf("[ERR] out of memory\n");
-          input->args_count_--;
-          freeInput(input);
-          return OUT_OF_MEMORY;
-        }
-        input->command_ = new_memory_for_input;
-        
-        input->command_[shell_count] = current_char;
-        ++shell_count;
-        input->command_[shell_count] = '\0';
-      }
+      if(saveChartoCommandorArg(input, current_char, &shell_count, &allocated_size_for_string, COMMAND) != SUCCESS)
+        return OUT_OF_MEMORY;
     }
     else
     {
-       if((shell_count + 1) < allocated_size_for_string)
-      {
-        input->args_[input->args_count_ - 1][shell_count] = current_char;
-        ++shell_count;
-        input->args_[input->args_count_ - 1][shell_count] = '\0';
-      }
-      else
-      {
-        //allocated_size_for_string double memory space
-        allocated_size_for_string *= 2;
-        char* new_memory_for_input = (char*)realloc(input->args_[input->args_count_ - 1], allocated_size_for_string);
-        if(new_memory_for_input == NULL)
-        {
-          printf("[ERR] out of memory\n");
-          input->args_count_--;
-          freeInput(input);
-          return OUT_OF_MEMORY;
-        }
-        input->args_[input->args_count_ - 1] = new_memory_for_input;
-        
-        input->args_[input->args_count_ - 1][shell_count] = current_char;
-        ++shell_count;
-        input->args_[input->args_count_ - 1][shell_count] = '\0';
-      }
+      if(saveChartoCommandorArg(input, current_char, &shell_count, &allocated_size_for_string, ARG) != SUCCESS)
+        return OUT_OF_MEMORY;
     }
   }
   return SUCCESS;
@@ -1344,18 +1308,125 @@ void handleDebugMode(Environment* data, EvalData* eval_data, int* return_value)
 
 void handleNormalMode(Environment* data, int* return_value, char* argv[])
 {
-   if (!strcmp(argv[1], "-e"))
+  if (!strcmp(argv[1], "-e"))
+  {
+    data->break_points_ = NULL;
+    data->bracket_index_ = NULL;
+    data->code_segment_ = NULL;
+    data->data_segment_ = NULL;
+    data->code_segment_size_ = 0;
+    data->data_segment_size_ = 1024;
+    data->last_stop_in_code = 0;
+    data->last_program_counter_stop_ = NULL;
+    data->data_loaded_ = FALSE;
+    data->end_reached_ = FALSE;
+    data->step_counter_ = NEUTRAL;
+    data->program_counter_index_ = 0;
+    setBreakPoint(&data->break_points_, -1);
+    data->data_segment_ = (unsigned char*)calloc(data->data_segment_size_, sizeof(unsigned char));
+    if (data->data_segment_ == NULL)
     {
-      if ((*return_value = readCodeFromFile(data, argv[2])) != SUCCESS)
+      printf("[ERR] out of memory\n");
+      *return_value = OUT_OF_MEMORY;
+      return;
+    }
+
+    if((*return_value = readCodeFromFile(data, argv[2])) != SUCCESS)
+    {
+      if (*return_value == OUT_OF_MEMORY)
       {
         return;
       }
-      runCode(data, data->bracket_index_, data->number_of_loops_);
+      else if(*return_value == READING_FILE_FAIL)
+      {
+        return;
+      }
     }
-    else
+
+    if (checkCodeCorrectness(data->code_segment_, &(data->number_of_loops_)) != SUCCESS)
     {
-      printf("[ERR] usage: ./assa [-e brainfuck_filnename]\n");
-      *return_value = FALSE_ARGUMENTS;
+      printf("[ERR] parsing of input failed\n");
+      *return_value = PARSE_FILE_ERROR;
+      return;
+    } 
+    if (createBracketIndex(&data->bracket_index_, data->number_of_loops_) != SUCCESS)
+    {
+      *return_value = OUT_OF_MEMORY;
       return;
     }
+    if ((*return_value = parseCode(data->code_segment_, &data->bracket_index_, data->number_of_loops_)) != SUCCESS)
+    {
+      if (*return_value == OUT_OF_MEMORY)
+      {
+        return;
+      }
+      else
+      {
+        *return_value = PARSE_FILE_ERROR;
+        return;
+      }
+    }
+    
+    runCode(data, data->bracket_index_, data->number_of_loops_);
+  }
+  else
+  {
+    printf("[ERR] usage: ./assa [-e brainfuck_filnename]\n");
+    *return_value = FALSE_ARGUMENTS;
+  }
+}
+
+int saveChartoCommandorArg(Input* input, char current_char, int* shell_count, int* allocated_size_for_string, int command_or_arg)
+{
+  if(((*shell_count) + 1) < *allocated_size_for_string)
+  {
+    if(command_or_arg == ARG)
+    {
+      input->args_[input->args_count_ - 1][*shell_count] = current_char;
+      ++*shell_count;
+      input->args_[input->args_count_ - 1][*shell_count] = '\0';
+    }
+    else if(command_or_arg == COMMAND)
+    {
+      input->command_[*shell_count] = current_char;
+      ++*shell_count;
+      input->command_[*shell_count] = '\0';
+    } 
+  }
+  else
+  {
+    //allocated_size_for_string double memory space
+    *allocated_size_for_string *= 2;
+    if(command_or_arg == ARG)
+    {
+      char* new_memory_for_input = (char*)realloc(input->args_[input->args_count_ - 1], *allocated_size_for_string);
+      if(new_memory_for_input == NULL)
+      {
+        printf("[ERR] out of memory\n");
+        input->args_count_--;
+        freeInput(input);
+        return OUT_OF_MEMORY;
+      }
+      input->args_[input->args_count_ - 1] = new_memory_for_input;
+      input->args_[input->args_count_ - 1][*shell_count] = current_char;
+      ++*shell_count;
+      input->args_[input->args_count_ - 1][*shell_count] = '\0';
+    }
+    else if(command_or_arg == COMMAND)
+    {
+      char* new_memory_for_input = (char*)realloc(input->command_, *allocated_size_for_string);
+      if(new_memory_for_input == NULL)
+      {
+        printf("[ERR] out of memory\n");
+        input->args_count_--;
+        freeInput(input);
+        return OUT_OF_MEMORY;
+      }
+      input->command_ = new_memory_for_input;
+      input->command_[*shell_count] = current_char;
+      ++*shell_count;
+      input->command_[*shell_count] = '\0';
+    }
+  }
+  return SUCCESS;
 }
