@@ -7,7 +7,7 @@
 //
 // Authors: Stefan Papst 1430868
 //          Harald Deutschmann XXXXXX
-//          Julia Heritsch XXXXXX
+//          Julia Heritsch 1430814
 //
 // Latest Changes: 08.12.2015 (by Stefan Papst)
 //------------------------------------------------------------------------------
@@ -108,6 +108,7 @@ int saveChartoCommandorArg(Input* input, char current_char, int* shell_count, in
 //-----------------------------------------------------------------------------
 ///
 /// The main program
+///
 /// This function checks, if the program is started in normal mode or in debug
 /// mode and then starts the right one.
 ///
@@ -169,6 +170,20 @@ int main(int argc, char* argv[])
   return return_value;
 }
 
+//-----------------------------------------------------------------------------
+///
+/// readCodeFromFile
+/// 
+/// This function checks if the file with the given name exists and then starts
+/// to read the content. Then the code is stored in the data struct.
+///
+/// @param data Pointer to our environment struct
+/// @param name Name of the file to read
+///
+/// @return READING_FILE_FAIL
+/// @return OUT_OF_MEMORY
+/// @return SUCCESS
+//
 int readCodeFromFile(Environment* data, char* name)
 {
   //open file
@@ -229,6 +244,18 @@ int readCodeFromFile(Environment* data, char* name)
   return SUCCESS;
 }
 
+//-----------------------------------------------------------------------------
+///
+/// checkCodeCorrectness
+/// 
+/// Counts open and close brackets and returns the difference.
+///
+/// @param code_segment The readed content is stored there
+/// @param number_of_loops Stores the number of loops ([..]) in code.
+///
+/// @return SUCCESS (if number of open and close brackets is equal)
+/// @return not SUCCESS (if the number of open and close brackets is not equal)
+//
 int checkCodeCorrectness(unsigned char* code_segment, int* number_of_loops)
 {
   int counter = 0;
@@ -246,6 +273,17 @@ int checkCodeCorrectness(unsigned char* code_segment, int* number_of_loops)
   return open_brackets_count - close_brackets_count;
 }
 
+//-----------------------------------------------------------------------------
+///
+/// checkCommandOrComment
+/// 
+/// This function is used for eliminating comments in code_segment.
+///
+/// @param current_char
+///
+/// @return TRUE
+/// @return FALSE
+//
 int checkCommandOrComment(unsigned char current_char)
 {
   switch (current_char)
@@ -280,6 +318,21 @@ int checkCommandOrComment(unsigned char current_char)
   }
 }
 
+//-----------------------------------------------------------------------------
+///
+/// runCode
+/// 
+/// This function starts at the last stopped index of the code segment and
+/// executes the brainfuck code on the data segment until the end or a 
+/// breakpoint or the step count is zero.
+///
+/// @param data Pointer to our environment struct
+/// @param bracket_index 2D array which stores all brackets and its indices
+/// @param number_of_loops Stores the number of loops ([..]) in code.
+///
+/// @return OUT_OF_MEMORY
+/// @return SUCCESS
+//
 int runCode(Environment* data, int** bracket_index, int number_of_loops)
 {
   unsigned char* program_counter = data->data_segment_ + data->program_counter_index_;
@@ -366,6 +419,21 @@ int runCode(Environment* data, int** bracket_index, int number_of_loops)
   return SUCCESS;
 }
 
+//-----------------------------------------------------------------------------
+///
+/// parseCode
+/// 
+/// In this function the code_segment is checked for brackets and the the index
+/// is stored in the bracket index array.
+///
+/// @param code_segment The block where the code is stored
+/// @param brackets The reference to the 2D array where the indices is stored
+///        to.
+///
+/// @return PARSE_FILE_ERROR
+/// @return OUT_OF_MEMORY
+/// @return SUCCESS
+//
 int parseCode(unsigned char* code_segment, int*** brackets, int number_of_loops)
 {
   if (number_of_loops == 0)
@@ -406,6 +474,20 @@ int parseCode(unsigned char* code_segment, int*** brackets, int number_of_loops)
   return PARSE_FILE_ERROR;
 }
 
+//-----------------------------------------------------------------------------
+///
+/// getIndexOfBracket
+/// 
+/// This function takes the current index of the bracket and returns the other 
+/// bracket index.
+///
+/// @param bracket_index The 2D array where all indices are stored
+/// @param size_of_array Size of columns of the array
+/// @param current_command_counter The current index in code segment
+/// @param open_or_close Which bracket type is required
+///
+/// @return NEUTRAL
+//
 int getIndexOfBracket(int** bracket_index, int size_of_array, int current_command_counter, int open_or_close)
 {
   int counter;
@@ -418,6 +500,18 @@ int getIndexOfBracket(int** bracket_index, int size_of_array, int current_comman
   return NEUTRAL;
 }
 
+//-----------------------------------------------------------------------------
+///
+/// createBracketIndex
+/// 
+/// Is used to allocate memory on heap.
+///
+/// @param bracket_index The array for which the memory should be allocated
+/// @param number_of_loops The column size of the array
+///
+/// @return OUT_OF_MEMORY
+/// @return SUCCESS
+//
 int createBracketIndex(int*** bracket_index, int number_of_loops)
 {
   if (number_of_loops == 0)
@@ -451,6 +545,21 @@ int createBracketIndex(int*** bracket_index, int number_of_loops)
   return SUCCESS;
 }
 
+//-----------------------------------------------------------------------------
+///
+/// checkIfEqalWithBreakPoint
+/// 
+/// The current command counter is checked with all setted breakpoints and if 
+/// the number is equal TRUE is returned.
+///
+/// @param current_command_counter The current index of the code segment
+/// @param break_points Pointer to the integer array where the brakpoints are 
+///        stored.
+///
+/// @return NEUTRAL
+/// @return TRUE
+/// @return FALSE
+//
 int checkIfEqalWithBreakPoint(int current_command_counter, int** break_points)
 {
   int counter = 0;
@@ -481,6 +590,18 @@ int checkIfEqalWithBreakPoint(int current_command_counter, int** break_points)
   return FALSE;
 }
 
+//-----------------------------------------------------------------------------
+///
+/// getCommandAndArgs
+/// 
+/// This function takes the commandline until EOF or newline and puts it in the 
+/// Input struct. 
+///
+/// @param input Pointer to Input struct
+///
+/// @return OUT_OF_MEMORY
+/// @return SUCCESS
+//
 int getCommandAndArgs(Input* input)
 {
   int current_char;
@@ -791,6 +912,21 @@ int initData(Environment* data)
   return SUCCESS;
 }
 
+
+//-----------------------------------------------------------------------------
+///
+/// Show Memory
+///
+/// This function prints
+/// out a certain position of the data storage. It´s also 
+/// possible to set a certain type
+/// 
+/// @param data Pointer to our environment struct
+/// @param position The position where to show the memory
+/// @param type The type how to print the memory
+///
+/// @return SUCCESS 
+//
 int showMemory(Environment* data, int position, char* type)
 {
   //Description for user MAYBE DEFINES?!
@@ -830,12 +966,40 @@ int showMemory(Environment* data, int position, char* type)
   return SUCCESS;
 }
 
+
+
+//-----------------------------------------------------------------------------
+///
+/// Change Memory
+///
+/// This function changes a certain
+/// byte of the data storage to a new wanted hex byte
+/// 
+/// @param position The position where to change the memory
+/// @param data Pointer to our environment struct
+/// @param value The new hex value we want to set
+///
+/// @return SUCCESSS 
+//
 int changeMemory(Environment* data, int position, unsigned int value)
 {
   data->data_segment_[position] = (unsigned char)value;
   return SUCCESS;
 }
 
+
+
+//-----------------------------------------------------------------------------
+///
+/// To Binary
+///
+/// This function converts an int number to a binary
+/// number and retuns it as a string
+///
+/// @param value The int value we want to convert
+/// @param bitsCount Number of zeros before our value
+/// @param output The char* where to safe the string
+//
 void toBinary(int value, int bitsCount, char* output)
 {
   int counter;
@@ -872,6 +1036,21 @@ void freeInput(Input* input)
   }
 }
 
+
+//-----------------------------------------------------------------------------
+///
+/// Load Command
+///
+/// This function is used for the load command, to load
+/// a brainfuck file into the program storage
+/// 
+/// @param input Pointer to our input struct
+/// @param data Pointer to our environment struct
+///
+/// @return SUCCESS
+/// @return OUT_OF_MEMORY
+/// @return READING_FILE_FAIL
+//
 int loadCommand(Input* input, Environment* data)
 {
   int return_value = SUCCESS;
@@ -967,6 +1146,19 @@ void runCommand(Environment* data)
     printf("[ERR] no program loaded\n");
 }
 
+
+//-----------------------------------------------------------------------------
+///
+/// Break Command
+///
+/// This function is used for the break command, to set
+/// break points, where you want to stop your program
+/// 
+/// @param input Pointer to our input struct
+/// @param data Pointer to our environment struct
+///
+/// @return SUCCESS
+//
 int breakCommand(Input* input, Environment* data)
 {
   int return_value = SUCCESS;
@@ -995,6 +1187,17 @@ int breakCommand(Input* input, Environment* data)
   return return_value;
 }
 
+
+//-----------------------------------------------------------------------------
+///
+/// Step Command
+///
+/// This function is used for the step command, to execute
+/// x steps of the loaded program. Default number = 1
+/// 
+/// @param input Pointer to our input struct
+/// @param data Pointer to our environment struct
+//
 void stepCommand(Input* input, Environment* data)
 {
    if (data->data_loaded_ == TRUE && data->end_reached_ == FALSE)
@@ -1015,6 +1218,17 @@ void stepCommand(Input* input, Environment* data)
     printf("[ERR] no program loaded\n");
 }
 
+//-----------------------------------------------------------------------------
+///
+/// Show Command
+///
+/// This function is waiting for the show command, to call 
+/// the showCode function, which shows next instructions 
+/// of the programm storage
+///
+/// @param input Pointer to our input struct
+/// @param data Pointer to our environment struct
+//
 void showCommand(Input* input, Environment* data)
 {
   if (data->data_loaded_ == TRUE && data->end_reached_ == FALSE)
@@ -1037,6 +1251,23 @@ void showCommand(Input* input, Environment* data)
     printf("[ERR] no program loaded\n");
 }
 
+
+
+//-----------------------------------------------------------------------------
+///
+/// Eval Command
+///
+/// This function is used for the eval command, to execute
+/// an additional brainfuck code, without resetting the data
+/// storage
+/// 
+/// @param input Pointer to our input struct
+/// @param data Pointer to our environment struct
+/// @param eval_data Pointer to our struct used for the eval Command
+///
+/// @return SUCCESS
+/// @return OUT_OF_MEMORY
+//
 int evalCommand(Input* input, Environment* data, EvalData* eval_data)
 {
   int return_value = SUCCESS;
@@ -1152,6 +1383,23 @@ int evalCommand(Input* input, Environment* data, EvalData* eval_data)
   return return_value;
 }
 
+
+
+//-----------------------------------------------------------------------------
+///
+/// Memory Command
+///
+/// This function is waiting for the memory command, to call
+/// the showMemory function, which prints out a certain position 
+/// of the data storage. It´s also 
+/// possible to set a certain type
+/// 
+/// @param input Pointer to our input struct
+/// @param data Pointer to our environment struct
+///
+/// @return FAILED 
+/// @return SUCCESS 
+//
 int memoryCommand(Input* input, Environment* data)
 {
   if (data->data_loaded_ == TRUE)
@@ -1186,6 +1434,21 @@ int memoryCommand(Input* input, Environment* data)
   return SUCCESS;
 }
 
+
+//-----------------------------------------------------------------------------
+///
+/// Change Command
+///
+/// This function is waiting for the change command, to call the changeMemory 
+/// functions, whichs changes the
+/// byte of the data storage to a hex byte
+/// 
+/// @param input Pointer to our input struct
+/// @param data Pointer to our environment struct
+///
+/// @return FAILED 
+/// @return SUCCESSS 
+//
 int changeCommand(Input* input, Environment* data)
 {
   int return_value = SUCCESS;
@@ -1217,6 +1480,19 @@ int changeCommand(Input* input, Environment* data)
   return return_value;
 }
 
+
+//-----------------------------------------------------------------------------
+///
+/// Handle Debug Mode
+///
+/// Function which handles the whole debug mode. Reads commands from stdin.
+/// 
+///
+/// @param data Pointer to our environment struct
+/// @param eval_data Pointer to our struct used for the eval Command
+/// 
+/// @return OUT_OF_MEMORY
+//
 void handleDebugMode(Environment* data, EvalData* eval_data, int* return_value)
 {
   Input input;
@@ -1304,6 +1580,24 @@ void handleDebugMode(Environment* data, EvalData* eval_data, int* return_value)
   
 }
 
+
+//-----------------------------------------------------------------------------
+///
+/// Handle Normal Mode
+///
+/// This function handles normal execution mode of the brainfuck code. 
+/// It is used when the programm is called without the "-e" parameter.
+///
+/// @param data Pointer to our environment struct
+/// @param return_value Return value for error handling
+/// @param argv Arguments with which the programm is called
+///
+/// @return SUCCESS 
+/// @return OUT_OF_MEMORY 
+/// @return PARSE_FILE_ERROR
+/// @return READING_FILE_FAIL
+/// @return FALSE_ARGUMENTS
+//
 void handleNormalMode(Environment* data, int* return_value, char* argv[])
 {
   if (!strcmp(argv[1], "-e"))
@@ -1374,6 +1668,24 @@ void handleNormalMode(Environment* data, int* return_value, char* argv[])
   }
 }
 
+
+
+//-----------------------------------------------------------------------------
+///
+/// saveChartoCommandorArg
+///
+/// This function is used to decide if the charater is part of comment or 
+/// argument. If the allocated size is to little the memory is realloced.
+/// 
+/// @param input Pointer to our input struct
+/// @param current_char Character to store
+/// @param shell_count Position where the character should be stored
+/// @param allocated_size_for_string Size allocated for the string
+/// @param command_or_arg If charater refers to command or argument
+///
+/// @return SUCCESS 
+/// @return OUT_OF_MEMORY 
+//
 int saveChartoCommandorArg(Input* input, char current_char, int* shell_count, int* allocated_size_for_string, int command_or_arg)
 {
   if(((*shell_count) + 1) < *allocated_size_for_string)
