@@ -6,14 +6,12 @@
 // Group: 4 study assistant Michael Schwarz
 //
 // Authors: Stefan Papst 1430868
-//          Harald Deutschmann XXXXXX
+//          Harald Deutschmann 1430300
 //          Julia Heritsch 1430814
 //
-// Latest Changes: 08.12.2015 (by Stefan Papst)
+// Latest Changes: 11.12.2015 (by Stefan Papst)
 //------------------------------------------------------------------------------
 //
-/*this is a special flag in visual studio for secure function errors/ Can be commented if there is a error in gcc*/
-#define _CRT_SECURE_NO_WARNINGS
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -72,22 +70,26 @@ typedef struct {
 } EvalData;
 
 
-/*------------HEADER NEED TO BE DONE-----------*/
+/*------------Function Prototypes-----------*/
 int readCodeFromFile(Environment* data, char* name);
 int checkCodeCorrectness(unsigned char* code_segment, int* number_of_loops);
 int checkCommandOrComment(unsigned char current_char);
 int runCode(Environment* data, int** bracket_index, int number_of_loops);
-int parseCode(unsigned char* code_segment, int*** brackets, int number_of_loops);
-int getIndexOfBracket(int** bracket_index, int size_of_array, int current_command_counter, int open_or_close);
+int parseCode(unsigned char* code_segment, int*** brackets,
+              int number_of_loops);
+int getIndexOfBracket(int** bracket_index, int size_of_array, 
+                      int current_command_counter, int open_or_close);
 int createBracketIndex(int*** bracket_index, int number_of_loops);
 int checkIfEqalWithBreakPoint(int current_command_counter, int** break_points);
 int getCommandAndArgs(Input* input);
 int deleteBracketIndex(int*** bracket_index, int number_of_loops);
 int setBreakPoint(int** break_points, int point_pos);
 int checkSteps(int* steps);
-int showCode(unsigned char* code_segment, int current_command_counter, int* number_to_show);
+int showCode(unsigned char* code_segment, int current_command_counter, 
+             int* number_to_show);
 int insertString(unsigned char** string, EvalData* eval_data);
-int cutOutString(unsigned char** string, EvalData* eval_data, int* last_stop_in_code);
+int cutOutString(unsigned char** string, EvalData* eval_data, 
+                 int* last_stop_in_code);
 int initData(Environment* data);
 int showMemory(Environment* data, int position, char* type);
 int changeMemory(Environment* data, int position, unsigned int value);
@@ -103,7 +105,8 @@ int memoryCommand(Input* input, Environment* data);
 int changeCommand(Input* input, Environment* data);
 void handleDebugMode(Environment* data, EvalData* eval_data, int* return_value);
 void handleNormalMode(Environment* data, int* return_value, char* argv[]);
-int saveChartoCommandorArg(Input* input, char current_char, int* shell_count, int* allocated_size_for_string, int command_or_arg);
+int saveChartoCommandorArg(Input* input, char current_char, int* shell_count, 
+                           int* allocated_size_for_string, int command_or_arg);
 
 //-----------------------------------------------------------------------------
 ///
@@ -156,11 +159,13 @@ int main(int argc, char* argv[])
   if (data.data_loaded_ == TRUE)
   {
    initData(&data);
-   free(data.data_segment_);
+  }
+  if(data.data_segment_ != NULL)
+  {
+    free(data.data_segment_);
    data.data_segment_ = NULL;
    data.data_segment_size_ = 0;
   }
-  
   if (data.break_points_ != NULL)
   {
     free(data.break_points_);
@@ -198,8 +203,8 @@ int readCodeFromFile(Environment* data, char* name)
   data->code_segment_ = (unsigned char*)calloc(500, sizeof(unsigned char));
   if (data->code_segment_ == NULL)
   {
-    printf("[ERR] reading the file failed\n");
-    return READING_FILE_FAIL;
+    printf("[ERR] out of memory\n");
+    return OUT_OF_MEMORY;
   }
 
   data->code_segment_size_ = 500;
@@ -221,13 +226,15 @@ int readCodeFromFile(Environment* data, char* name)
         unsigned char* new_data_segment = NULL;
         data->code_segment_size_ *= 2;
 
-        new_data_segment = (unsigned char*) realloc(data->code_segment_, data->code_segment_size_);
+        new_data_segment = (unsigned char*) realloc(data->code_segment_, 
+                                                    data->code_segment_size_);
         if (new_data_segment == NULL)
         {
           printf("[ERR] out of memory\n");
           return OUT_OF_MEMORY;
         }
-        unsigned char* start = &(new_data_segment[data->code_segment_size_ / 2]);
+        unsigned char* start;
+        start = &(new_data_segment[data->code_segment_size_ / 2]);
         memset(start, 0, data->code_segment_size_ / 2);
 
         data->code_segment_ = new_data_segment;
@@ -335,22 +342,27 @@ int checkCommandOrComment(unsigned char current_char)
 //
 int runCode(Environment* data, int** bracket_index, int number_of_loops)
 {
-  unsigned char* program_counter = data->data_segment_ + data->program_counter_index_;
+  unsigned char* program_counter = data->data_segment_ 
+                                  + data->program_counter_index_;
   int current_command_counter = data->last_stop_in_code;
     
   while ((data->code_segment_)[current_command_counter] != '\0')
   { 
-    if (checkIfEqalWithBreakPoint(current_command_counter, &data->break_points_) == TRUE || checkSteps(&data->step_counter_) == TRUE)
+    if (checkIfEqalWithBreakPoint(current_command_counter, 
+                                  &data->break_points_) == TRUE 
+        || checkSteps(&data->step_counter_) == TRUE)
     {
       break;
     }
   
-    if (program_counter >= ((data->data_segment_) + data->data_segment_size_ - 1))
+    if (program_counter >= ((data->data_segment_)
+                             + data->data_segment_size_ - 1))
     {
-      printf("out of memory now\n");
       data->data_segment_size_ *= 2;
 
-      unsigned char* new_data_segment = (unsigned char*) realloc(data->data_segment_, data->data_segment_size_);
+      unsigned char* new_data_segment;
+      new_data_segment = (unsigned char*) realloc(data->data_segment_,
+                                                  data->data_segment_size_);
       if (new_data_segment == NULL)
       {
         printf("[ERR] out of memory\n");
@@ -362,7 +374,6 @@ int runCode(Environment* data, int** bracket_index, int number_of_loops)
       unsigned char* start = &(new_data_segment[data->data_segment_size_ / 2]);
       memset(start, 0, data->data_segment_size_ / 2);
       data->data_segment_ = new_data_segment;
-      printf("new memory done\n");
     }
 
     switch ((data->code_segment_)[current_command_counter])
@@ -391,14 +402,22 @@ int runCode(Environment* data, int** bracket_index, int number_of_loops)
     case '[':
       if (*program_counter == 0)
       {
-        int index_of_current_command = getIndexOfBracket(bracket_index, number_of_loops, current_command_counter, OPEN);
-        current_command_counter = data->bracket_index_[index_of_current_command][CLOSE];
+        int index_of_current_command = getIndexOfBracket(bracket_index, 
+                                                         number_of_loops, 
+                                                         current_command_counter
+                                                       , OPEN);
+        current_command_counter = data->bracket_index_[index_of_current_command]
+                                                      [CLOSE];
       }
       break;
     case ']':
     {
-      int index_of_current_command = getIndexOfBracket(bracket_index, number_of_loops, current_command_counter, CLOSE);
-      current_command_counter = data->bracket_index_[(index_of_current_command)][OPEN];
+      int index_of_current_command = getIndexOfBracket(bracket_index,
+                                                       number_of_loops, 
+                                                       current_command_counter,
+                                                       CLOSE);
+      current_command_counter = data->bracket_index_[(index_of_current_command)]
+                                                    [OPEN];
       current_command_counter--;
       break;
     }
@@ -409,10 +428,12 @@ int runCode(Environment* data, int** bracket_index, int number_of_loops)
     current_command_counter++;
   }
   data->last_stop_in_code = current_command_counter;
-  data->last_program_counter_stop_ = program_counter;//can be usefull for memory and change!!! points to the current char of the data_segment
-  data->program_counter_index_ = program_counter - data->data_segment_;//to get the differnce between the start and the current pos --> index 
+  //can be usefull for memory and change!!! points to the current 
+  //char of the data_segment
+  data->last_program_counter_stop_ = program_counter;
+  //to get the differnce between the start and the current pos --> index 
+  data->program_counter_index_ = program_counter - data->data_segment_;
   
-
   if(current_command_counter == data->code_length_)
     data->end_reached_ = TRUE;
 
@@ -488,7 +509,8 @@ int parseCode(unsigned char* code_segment, int*** brackets, int number_of_loops)
 ///
 /// @return NEUTRAL
 //
-int getIndexOfBracket(int** bracket_index, int size_of_array, int current_command_counter, int open_or_close)
+int getIndexOfBracket(int** bracket_index, int size_of_array, 
+                      int current_command_counter, int open_or_close)
 {
   int counter;
 
@@ -645,7 +667,9 @@ int getCommandAndArgs(Input* input)
       }
       else
       {
-        char** new_memory_for_strings = (char**)realloc(input->args_, sizeof(char*) * (input->args_count_ + 1));
+        char** new_memory_for_strings = (char**)realloc(input->args_, 
+                                                        sizeof(char*) 
+                                                    * (input->args_count_ + 1));
         if (new_memory_for_strings == NULL)
         {
           printf("[ERR] out of memory\n");
@@ -657,7 +681,9 @@ int getCommandAndArgs(Input* input)
       
       allocated_size_for_string = 5;
       //most args are smaller than 4 + nullbyte
-      input->args_[input->args_count_] = (char*) calloc(allocated_size_for_string, sizeof(char));
+      input->args_[input->args_count_] = (char*) calloc(
+                                                      allocated_size_for_string, 
+                                                        sizeof(char));
       if(input->args_[input->args_count_] == NULL)
       {
         printf("[ERR] out of memory\n");
@@ -681,18 +707,32 @@ int getCommandAndArgs(Input* input)
     //check for right string to write.
     if(command_setted == FALSE)
     {
-      if(saveChartoCommandorArg(input, current_char, &shell_count, &allocated_size_for_string, COMMAND) != SUCCESS)
+      if(saveChartoCommandorArg(input, current_char, &shell_count,
+                                &allocated_size_for_string, COMMAND) != SUCCESS)
         return OUT_OF_MEMORY;
     }
     else
     {
-      if(saveChartoCommandorArg(input, current_char, &shell_count, &allocated_size_for_string, ARG) != SUCCESS)
+      if(saveChartoCommandorArg(input, current_char, &shell_count, 
+                                &allocated_size_for_string, ARG) != SUCCESS)
         return OUT_OF_MEMORY;
     }
   }
   return SUCCESS;
 }
 
+//-----------------------------------------------------------------------------
+///
+/// deleteBracketIndex
+/// 
+/// This function frees the allocated 2-D array with the positions 
+/// of the Brackets.
+///
+/// @param bracket_index points to the 2-D array with the brackets positions
+/// @param number_of_loops gives back the number of open + closed brackets
+///
+/// @return SUCCESS
+//
 int deleteBracketIndex(int*** bracket_index, int number_of_loops)
 {
   int counter;
@@ -710,13 +750,26 @@ int deleteBracketIndex(int*** bracket_index, int number_of_loops)
   return SUCCESS;
 }
 
+//-----------------------------------------------------------------------------
+///
+/// setBreakPoint
+/// 
+/// This function sets the new breakPoints after the command break 'x'
+/// 
+///
+/// @param break_points points to the 1-D array of break points
+/// @param point_pos is the given position 'x' for a new break Point from input
+///
+/// @return OUT_OF_MEMORY
+/// @return SUCCESS
+//
 int setBreakPoint(int** break_points, int point_pos)
 {
   int counter = 0;
   if (*break_points != NULL)
   {
     for (counter = 1; (*break_points)[counter - 1] != -2; counter++)
-      printf("breakpoint[%d] = %d\n", counter - 1, (*break_points)[counter - 1]);
+     ;
   }
   
   int array_size = counter;
@@ -752,7 +805,8 @@ int setBreakPoint(int** break_points, int point_pos)
       }
     }
     
-    int* new_array = (int*)realloc(*break_points, sizeof(int) * (array_size + 1));
+    int* new_array = (int*)realloc(*break_points, 
+                                   sizeof(int) * (array_size + 1));
     if (new_array == NULL)
     {
       printf("[ERR] out of memory\n");
@@ -766,6 +820,19 @@ int setBreakPoint(int** break_points, int point_pos)
   }
 }
 
+//-----------------------------------------------------------------------------
+///
+/// checkSteps
+/// 
+/// This function checks, whether the given steps are neutral = -1 or 0
+/// 
+///
+/// @param steps is a pointer to the given steps for the command step
+///
+/// @return TRUE
+/// @return FALSE
+/// @return NEUTRAL
+//
 int checkSteps(int* steps)
 {
   if(*steps == NEUTRAL)
@@ -784,7 +851,20 @@ int checkSteps(int* steps)
   }
 }
 
-int showCode(unsigned char* code_segment, int current_command_counter, int* number_to_show)
+//-----------------------------------------------------------------------------
+///
+/// showCode
+/// 
+/// This function show a given number of chars from the code_segment
+///
+/// @param code_segment is a pointer to the executable code from file
+/// @param current_command_counter includes the current position
+/// @param number_to_show includes the number of elements to show
+///
+/// @return SUCCESS
+//
+int showCode(unsigned char* code_segment, int current_command_counter, 
+             int* number_to_show)
 {
   if(*number_to_show > 0)
   {
@@ -807,11 +887,25 @@ int showCode(unsigned char* code_segment, int current_command_counter, int* numb
   
 }
 
+//-----------------------------------------------------------------------------
+///
+/// insertString
+/// 
+/// This function inserts the string from the command eval -> string 
+/// to the current position in the code_segment
+///
+/// @param string is the string to be inserted
+/// @param eval_data is the whole data for the command eval
+///
+/// @return OUT_OF_MEMORY
+/// @return SUCCESS
+//
 int insertString(unsigned char** string, EvalData* eval_data)
 {
-  eval_data->insert_string_len_ = strlen((char*)eval_data->string_to_insert_) + 1;
+  eval_data->insert_string_len_ = strlen((char*)eval_data->string_to_insert_) 
+                                  + 1;
 
-  unsigned char* string_copy = (unsigned char*)calloc(1, sizeof(*string));
+  unsigned char* string_copy = (unsigned char*)calloc(1, strlen((char*)*string) + 1);
   if (string_copy == NULL)
   {
     printf("[ERR] out of memory\n");
@@ -822,17 +916,20 @@ int insertString(unsigned char** string, EvalData* eval_data)
   int counter;
   for (counter = 0; counter < eval_data->insert_string_len_; counter++)
   {
-    (*string)[eval_data->insert_pos_in_string_ + counter] = eval_data->string_to_insert_[counter];
+    (*string)[eval_data->insert_pos_in_string_ + counter] = 
+                                          eval_data->string_to_insert_[counter];
   }
   (*string)[eval_data->insert_pos_in_string_ + counter - 1] = '\0';
   counter = 0;
   while (string_copy[eval_data->insert_pos_in_string_ + counter] != '\0')
   {
-    (*string)[eval_data->insert_pos_in_string_ + eval_data->insert_string_len_ + counter] = string_copy[eval_data->insert_pos_in_string_ + counter];
+    (*string)[eval_data->insert_pos_in_string_ + eval_data->insert_string_len_ 
+           + counter] = string_copy[eval_data->insert_pos_in_string_ + counter];
     counter++;
   }
 
-  (*string)[eval_data->insert_pos_in_string_ + eval_data->insert_string_len_ + counter] = '\0';
+  (*string)[eval_data->insert_pos_in_string_ + eval_data->insert_string_len_ 
+            + counter] = '\0';
   
   if(string_copy != NULL)
   {
@@ -842,12 +939,29 @@ int insertString(unsigned char** string, EvalData* eval_data)
   return SUCCESS;
 }
 
-int cutOutString(unsigned char** string, EvalData* eval_data, int* last_stop_in_code)
+//-----------------------------------------------------------------------------
+///
+/// cutOutString
+/// 
+/// This function cuts out the code_segment's inserted string (eval -> string) 
+///
+/// @param string is the inserted string from eval
+/// @param eval_data includes the data for the eval command
+/// @param last_stop_in_code includes the position of the next breakpoint o EOF
+///
+/// @return SUCCESS
+//
+int cutOutString(unsigned char** string, EvalData* eval_data, 
+                 int* last_stop_in_code)
 {
   int counter = 0;
-  while ((*string)[eval_data->insert_pos_in_string_ + eval_data->insert_string_len_ + counter] != '\0')
+  while ((*string)[eval_data->insert_pos_in_string_ 
+                  + eval_data->insert_string_len_ + counter] != '\0')
   {
-    (*string)[eval_data->insert_pos_in_string_ + counter] = (*string)[eval_data->insert_pos_in_string_ + eval_data->insert_string_len_ + counter];
+    (*string)[eval_data->insert_pos_in_string_ + counter] = 
+            (*string)[eval_data->insert_pos_in_string_ 
+                    + eval_data->insert_string_len_ 
+                    + counter];
     counter++;
   }
 
@@ -858,7 +972,6 @@ int cutOutString(unsigned char** string, EvalData* eval_data, int* last_stop_in_
   
   if(eval_data->string_to_insert_ != NULL)
   {
-    printf("String is freed!\n");
     free(eval_data->string_to_insert_);
     eval_data->string_to_insert_ = NULL;
   }
@@ -868,6 +981,16 @@ int cutOutString(unsigned char** string, EvalData* eval_data, int* last_stop_in_
   return SUCCESS;
 }
 
+///
+/// initData
+/// 
+/// This function initialises the data for the struct Environment.
+///
+/// @param data points to the object of Environment
+///
+/// @return OUT_OF_MEMORY
+/// @return SUCCESS
+//
 int initData(Environment* data)
 {
   if (data->break_points_ != NULL)
@@ -903,7 +1026,8 @@ int initData(Environment* data)
     data->data_segment_ = NULL;
   }
 
-  data->data_segment_ = (unsigned char*)calloc(data->data_segment_size_, sizeof(unsigned char));
+  data->data_segment_ = (unsigned char*)calloc(data->data_segment_size_, 
+                                               sizeof(unsigned char));
   if (data->data_segment_ == NULL)
   {
     printf("[ERR] out of memory\n");
@@ -1010,6 +1134,14 @@ void toBinary(int value, int bitsCount, char* output)
   }
 }
 
+//-----------------------------------------------------------------------------
+///
+/// freeInput
+///
+/// This function frees the not needed and saved input from the commandline
+///
+/// @param input includes the data for the input command, args and args length
+//
 void freeInput(Input* input)
 {
   //free the input
@@ -1057,20 +1189,14 @@ int loadCommand(Input* input, Environment* data)
   if(input->args_count_ == 0 || input->args_[0][0] == '\0')
   {
     printf("[ERR] wrong parameter count\n");
-    if (input->command_ != NULL)
-    {
-      freeInput(input);
-    }
     return return_value;
   }
   if (data->data_loaded_ == TRUE)
   {
-    printf("loaded\n");
     initData(data);
   }
   else
   {
-    printf("not loaded\n");
     data->break_points_ = NULL;
     data->bracket_index_ = NULL;
     data->code_segment_ = NULL;
@@ -1102,7 +1228,6 @@ int loadCommand(Input* input, Environment* data)
     }
     else if(return_value == READING_FILE_FAIL)
     {
-      freeInput(input);
       return return_value;
     }
   }
@@ -1136,6 +1261,14 @@ int loadCommand(Input* input, Environment* data)
   return return_value;
 }
 
+//-----------------------------------------------------------------------------
+///
+/// runCommand
+/// 
+/// This function runs the function runCode which was implemented before
+///
+/// @param data Pointer to our environment struct
+//
 void runCommand(Environment* data)
 {
   if (data->data_loaded_ == TRUE && data->end_reached_ == FALSE)
@@ -1174,7 +1307,8 @@ int breakCommand(Input* input, Environment* data)
     if(break_point < 0)
       break_point *= -1;
 
-    if ((return_value = setBreakPoint(&data->break_points_, break_point)) != SUCCESS)
+    if ((return_value = setBreakPoint(&data->break_points_, 
+                                      break_point)) != SUCCESS)
     {
       freeInput(input);
       return return_value;
@@ -1279,7 +1413,6 @@ int evalCommand(Input* input, Environment* data, EvalData* eval_data)
   }
   if (data->data_loaded_ != TRUE)
   {
-    printf("not loaded\n");
     data->break_points_ = NULL;
     data->bracket_index_ = NULL;
     data->code_segment_ = NULL;
@@ -1293,7 +1426,8 @@ int evalCommand(Input* input, Environment* data, EvalData* eval_data)
     data->step_counter_ = NEUTRAL;
     data->program_counter_index_ = 0;
     setBreakPoint(&data->break_points_, -1);
-    data->data_segment_ = (unsigned char*)calloc(data->data_segment_size_, sizeof(unsigned char));
+    data->data_segment_ = (unsigned char*)calloc(data->data_segment_size_, 
+                                                 sizeof(unsigned char));
     if (data->data_segment_ == NULL)
     {
       printf("[ERR] out of memory\n");
@@ -1312,27 +1446,28 @@ int evalCommand(Input* input, Environment* data, EvalData* eval_data)
     data->code_segment_size_ = 85; 
   }
   int eval_len = strlen(input->args_[0]);
-  eval_data->string_to_insert_ = (unsigned char*) malloc((eval_len + 1) * sizeof(unsigned char));
+  eval_data->string_to_insert_ = (unsigned char*) malloc((eval_len + 1) 
+                                                    * sizeof(unsigned char));
   strcpy((char*)eval_data->string_to_insert_, input->args_[0]);
-  if (checkCodeCorrectness(eval_data->string_to_insert_, &(eval_data->number_of_loops_)) != SUCCESS)
+  if (checkCodeCorrectness(eval_data->string_to_insert_,
+                           &(eval_data->number_of_loops_)) != SUCCESS)
   {
     printf("[ERR] parsing of input failed\n");
     freeInput(input);
     if(eval_data->string_to_insert_ != NULL)
     {
-      printf("String is freed!\n");
       free(eval_data->string_to_insert_);
       eval_data->string_to_insert_ = NULL;
     }
     return return_value;
   }
 
-  if (createBracketIndex(&eval_data->bracket_index_, eval_data->number_of_loops_) != SUCCESS)
+  if (createBracketIndex(&eval_data->bracket_index_, 
+                         eval_data->number_of_loops_) != SUCCESS)
   {
     freeInput(input);
     if(eval_data->string_to_insert_ != NULL)
     {
-      printf("String is freed!\n");
       free(eval_data->string_to_insert_);
       eval_data->string_to_insert_ = NULL;
     }
@@ -1340,12 +1475,13 @@ int evalCommand(Input* input, Environment* data, EvalData* eval_data)
     return return_value;
   }
 
-  if ((return_value = parseCode(eval_data->string_to_insert_, &eval_data->bracket_index_, eval_data->number_of_loops_)) != SUCCESS)
+  if ((return_value = parseCode(eval_data->string_to_insert_, 
+                                &eval_data->bracket_index_, 
+                                eval_data->number_of_loops_)) != SUCCESS)
   {
     freeInput(input);
     if(eval_data->string_to_insert_ != NULL)
     {
-      printf("String is freed!\n");
       free(eval_data->string_to_insert_);
       eval_data->string_to_insert_ = NULL;
     }
@@ -1360,7 +1496,8 @@ int evalCommand(Input* input, Environment* data, EvalData* eval_data)
     }
   }
 
-  if ((eval_data->insert_string_len_ = (strlen((char*)eval_data->string_to_insert_) + 1)) > 80)
+  if ((eval_data->insert_string_len_ = 
+                        (strlen((char*)eval_data->string_to_insert_) + 1)) > 80)
   {
     eval_data->insert_string_len_ = 81;
     eval_data->string_to_insert_[80] = '\0';
@@ -1372,7 +1509,6 @@ int evalCommand(Input* input, Environment* data, EvalData* eval_data)
     freeInput(input);
     if(eval_data->string_to_insert_ != NULL)
     {
-      printf("String is freed!\n");
       free(eval_data->string_to_insert_);
       eval_data->string_to_insert_ = NULL;
     }
@@ -1417,7 +1553,6 @@ int memoryCommand(Input* input, Environment* data)
       //load number
       if ((position = atoi(input->args_[0])) == 0)
       {
-        printf("starts not with an int\n");
         position = 0;
       }
     }
@@ -1615,7 +1750,8 @@ void handleNormalMode(Environment* data, int* return_value, char* argv[])
     data->step_counter_ = NEUTRAL;
     data->program_counter_index_ = 0;
     setBreakPoint(&data->break_points_, -1);
-    data->data_segment_ = (unsigned char*)calloc(data->data_segment_size_, sizeof(unsigned char));
+    data->data_segment_ = (unsigned char*)calloc(data->data_segment_size_, 
+                                                 sizeof(unsigned char));
     if (data->data_segment_ == NULL)
     {
       printf("[ERR] out of memory\n");
@@ -1635,18 +1771,22 @@ void handleNormalMode(Environment* data, int* return_value, char* argv[])
       }
     }
 
-    if (checkCodeCorrectness(data->code_segment_, &(data->number_of_loops_)) != SUCCESS)
+    if (checkCodeCorrectness(data->code_segment_, 
+                             &(data->number_of_loops_)) != SUCCESS)
     {
       printf("[ERR] parsing of input failed\n");
       *return_value = PARSE_FILE_ERROR;
       return;
     } 
-    if (createBracketIndex(&data->bracket_index_, data->number_of_loops_) != SUCCESS)
+    if (createBracketIndex(&data->bracket_index_, 
+                           data->number_of_loops_) != SUCCESS)
     {
       *return_value = OUT_OF_MEMORY;
       return;
     }
-    if ((*return_value = parseCode(data->code_segment_, &data->bracket_index_, data->number_of_loops_)) != SUCCESS)
+    if ((*return_value = parseCode(data->code_segment_, 
+                                   &data->bracket_index_, 
+                                   data->number_of_loops_)) != SUCCESS)
     {
       if (*return_value == OUT_OF_MEMORY)
       {
@@ -1686,7 +1826,8 @@ void handleNormalMode(Environment* data, int* return_value, char* argv[])
 /// @return SUCCESS 
 /// @return OUT_OF_MEMORY 
 //
-int saveChartoCommandorArg(Input* input, char current_char, int* shell_count, int* allocated_size_for_string, int command_or_arg)
+int saveChartoCommandorArg(Input* input, char current_char, int* shell_count, 
+                           int* allocated_size_for_string, int command_or_arg)
 {
   if(((*shell_count) + 1) < *allocated_size_for_string)
   {
@@ -1709,7 +1850,9 @@ int saveChartoCommandorArg(Input* input, char current_char, int* shell_count, in
     *allocated_size_for_string *= 2;
     if(command_or_arg == ARG)
     {
-      char* new_memory_for_input = (char*)realloc(input->args_[input->args_count_ - 1], *allocated_size_for_string);
+      char* new_memory_for_input = 
+        (char*)realloc(input->args_[input->args_count_ - 1], 
+                       *allocated_size_for_string);
       if(new_memory_for_input == NULL)
       {
         printf("[ERR] out of memory\n");
@@ -1724,7 +1867,8 @@ int saveChartoCommandorArg(Input* input, char current_char, int* shell_count, in
     }
     else if(command_or_arg == COMMAND)
     {
-      char* new_memory_for_input = (char*)realloc(input->command_, *allocated_size_for_string);
+      char* new_memory_for_input = (char*)realloc(input->command_, 
+                                                  *allocated_size_for_string);
       if(new_memory_for_input == NULL)
       {
         printf("[ERR] out of memory\n");
