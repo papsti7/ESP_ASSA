@@ -12,7 +12,6 @@
 // Latest Changes: 12.12.2015 (by Stefan Papst)
 //------------------------------------------------------------------------------
 //
-#define _CRT_SECURE_NO_WARNINGS
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -486,7 +485,6 @@ int parseCode(unsigned char* code_segment, int*** brackets, int number_of_loops)
     printf("[ERR] out of memory\n");
     return OUT_OF_MEMORY;
   }
-  printf("numberofloops: '%d\n", number_of_loops);
   while (code_segment[counter] != '\0')
   {
     if (number_of_loops == 0)
