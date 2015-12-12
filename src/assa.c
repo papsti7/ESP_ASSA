@@ -345,7 +345,7 @@ int runCode(Environment* data, int** bracket_index, int number_of_loops)
   unsigned char* program_counter = data->data_segment_ 
                                   + data->program_counter_index_;
   int current_command_counter = data->last_stop_in_code;
-    
+  
   while ((data->code_segment_)[current_command_counter] != '\0')
   { 
     if (checkIfEqalWithBreakPoint(current_command_counter, 
@@ -354,7 +354,7 @@ int runCode(Environment* data, int** bracket_index, int number_of_loops)
     {
       break;
     }
-  
+    printf("test 1\n");
     if (program_counter >= ((data->data_segment_)
                              + data->data_segment_size_ - 1))
     {
@@ -419,6 +419,7 @@ int runCode(Environment* data, int** bracket_index, int number_of_loops)
       current_command_counter = data->bracket_index_[(index_of_current_command)]
                                                     [OPEN];
       current_command_counter--;
+
       break;
     }
 
@@ -426,6 +427,7 @@ int runCode(Environment* data, int** bracket_index, int number_of_loops)
       break;
     }
     current_command_counter++;
+
   }
   data->last_stop_in_code = current_command_counter;
   //can be usefull for memory and change!!! points to the current 
@@ -433,7 +435,6 @@ int runCode(Environment* data, int** bracket_index, int number_of_loops)
   data->last_program_counter_stop_ = program_counter;
   //to get the differnce between the start and the current pos --> index 
   data->program_counter_index_ = program_counter - data->data_segment_;
-  
   if(current_command_counter == data->code_length_)
     data->end_reached_ = TRUE;
 
@@ -480,12 +481,12 @@ int parseCode(unsigned char* code_segment, int*** brackets, int number_of_loops)
     }
     if (code_segment[counter] == '[')
     {
-      (*brackets)[latest_open_bracket][0] = counter;
+      (*brackets)[latest_open_bracket][OPEN] = counter;
       *(bracket_queue + bracket_queue_counter++) = latest_open_bracket++;
     }
     else if (code_segment[counter] == ']')
     {
-      (*brackets)[*(bracket_queue + --bracket_queue_counter)][1] = counter;
+      (*brackets)[*(bracket_queue + --bracket_queue_counter)][CLOSE] = counter;
       number_of_loops--;
     }
     counter++;
@@ -1235,7 +1236,12 @@ int loadCommand(Input* input, Environment* data)
   if (checkCodeCorrectness(data->code_segment_, &(data->number_of_loops_)) != SUCCESS)
   {
     printf("[ERR] parsing of input failed\n");
-    freeInput(input);
+    data->data_loaded_ = FALSE;
+    if(data->code_segment_ != NULL)
+    {
+      free(data->code_segment_);
+      data->code_segment_ = NULL;
+    }
     return return_value;
   } 
   if (createBracketIndex(&data->bracket_index_, data->number_of_loops_) != SUCCESS)
@@ -1246,14 +1252,15 @@ int loadCommand(Input* input, Environment* data)
   }
   if ((return_value = parseCode(data->code_segment_, &data->bracket_index_, data->number_of_loops_)) != SUCCESS)
   {
-    freeInput(input);
     if (return_value == OUT_OF_MEMORY)
     {
+      freeInput(input);
       return return_value;
     }
     else
     {
       return_value = SUCCESS;
+      data->data_loaded_ = FALSE;
       return return_value;
     }
   }
@@ -1449,55 +1456,9 @@ int evalCommand(Input* input, Environment* data, EvalData* eval_data)
   eval_data->string_to_insert_ = (unsigned char*) malloc((eval_len + 1) 
                                                     * sizeof(unsigned char));
   strcpy((char*)eval_data->string_to_insert_, input->args_[0]);
-  if (checkCodeCorrectness(eval_data->string_to_insert_,
-                           &(eval_data->number_of_loops_)) != SUCCESS)
-  {
-    printf("[ERR] parsing of input failed\n");
-    freeInput(input);
-    if(eval_data->string_to_insert_ != NULL)
-    {
-      free(eval_data->string_to_insert_);
-      eval_data->string_to_insert_ = NULL;
-    }
-    return return_value;
-  }
-
-  if (createBracketIndex(&eval_data->bracket_index_, 
-                         eval_data->number_of_loops_) != SUCCESS)
-  {
-    freeInput(input);
-    if(eval_data->string_to_insert_ != NULL)
-    {
-      free(eval_data->string_to_insert_);
-      eval_data->string_to_insert_ = NULL;
-    }
-    return_value = OUT_OF_MEMORY;
-    return return_value;
-  }
-
-  if ((return_value = parseCode(eval_data->string_to_insert_, 
-                                &eval_data->bracket_index_, 
-                                eval_data->number_of_loops_)) != SUCCESS)
-  {
-    freeInput(input);
-    if(eval_data->string_to_insert_ != NULL)
-    {
-      free(eval_data->string_to_insert_);
-      eval_data->string_to_insert_ = NULL;
-    }
-    if (return_value == OUT_OF_MEMORY)
-    {
-      return return_value;
-    }
-    else
-    {
-      return_value = SUCCESS;
-      return return_value;
-    }
-  }
 
   if ((eval_data->insert_string_len_ = 
-                        (strlen((char*)eval_data->string_to_insert_) + 1)) > 80)
+                      (strlen((char*)eval_data->string_to_insert_) + 1)) > 80)
   {
     eval_data->insert_string_len_ = 81;
     eval_data->string_to_insert_[80] = '\0';
@@ -1513,6 +1474,55 @@ int evalCommand(Input* input, Environment* data, EvalData* eval_data)
       eval_data->string_to_insert_ = NULL;
     }
     return return_value;
+  }
+  if (checkCodeCorrectness(data->code_segment_,
+                           &(eval_data->number_of_loops_)) != SUCCESS)
+  {
+    printf("[ERR] parsing of input failed\n");
+    cutOutString(&data->code_segment_, eval_data, &data->last_stop_in_code);
+    freeInput(input);
+    if(eval_data->string_to_insert_ != NULL)
+    {
+      free(eval_data->string_to_insert_);
+      eval_data->string_to_insert_ = NULL;
+    }
+    return return_value;
+  }
+
+  if (createBracketIndex(&eval_data->bracket_index_, 
+                         eval_data->number_of_loops_) != SUCCESS)
+  {
+    freeInput(input);
+    cutOutString(&data->code_segment_, eval_data, &data->last_stop_in_code);
+    if(eval_data->string_to_insert_ != NULL)
+    {
+      free(eval_data->string_to_insert_);
+      eval_data->string_to_insert_ = NULL;
+    }
+    return_value = OUT_OF_MEMORY;
+    return return_value;
+  }
+
+  if ((return_value = parseCode(data->code_segment_, 
+                                &(eval_data->bracket_index_), 
+                                eval_data->number_of_loops_)) != SUCCESS)
+  {
+    freeInput(input);
+
+    if(eval_data->string_to_insert_ != NULL)
+    {
+      free(eval_data->string_to_insert_);
+      eval_data->string_to_insert_ = NULL;
+    }
+    if (return_value == OUT_OF_MEMORY)
+    {
+      return return_value;
+    }
+    else
+    {
+      return_value = SUCCESS;
+      return return_value;
+    }
   }
   runCode(data, eval_data->bracket_index_, eval_data->number_of_loops_);
   cutOutString(&data->code_segment_, eval_data, &data->last_stop_in_code);
