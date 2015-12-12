@@ -1096,7 +1096,7 @@ int showMemory(Environment* data, int position, char* type)
   }
   else if (strcmp(type, "char") == TRUE)
   {
-    strcpy(description, "Character");
+    strcpy(description, "Char");
     value_as_type[0] = value;
     value_as_type[1] = '\0';
   }
