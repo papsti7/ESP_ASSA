@@ -36,6 +36,8 @@
 #define COMMAND 0
 #define ARG 1
 
+#define STANDARD_DATA_SIZE 1024
+
 
 //this struct contains all information about the program
 typedef struct {
@@ -50,6 +52,7 @@ typedef struct {
   unsigned char* last_program_counter_stop_;
   int program_counter_index_;
   int data_loaded_;
+  int data_executed_;
   int** bracket_index_;
   int end_reached_;
   int step_counter_;
@@ -132,6 +135,17 @@ int main(int argc, char* argv[])
   data.code_segment_ = NULL;
   data.data_segment_ = NULL;
   data.data_loaded_ = FALSE;
+  data.data_executed_ = FALSE;
+  data.code_segment_size_ = 0;
+  data.data_segment_size_ = 0;
+  data.code_length_ = 0;
+  data.number_of_loops_ = 0;
+  data.last_stop_in_code = 0;
+  data.last_program_counter_stop_ = NULL;;
+  data.program_counter_index_ = 0;
+  data.end_reached_ = FALSE;
+  data.step_counter_ = NEUTRAL;
+ 
   
   EvalData eval_data;
   eval_data.insert_pos_in_string_ = NEUTRAL;
@@ -160,11 +174,11 @@ int main(int argc, char* argv[])
   {
    initData(&data);
   }
-  if(data.data_segment_ != NULL)
+  if(data.data_segment_size_ > 0)
   {
     free(data.data_segment_);
-   data.data_segment_ = NULL;
-   data.data_segment_size_ = 0;
+    data.data_segment_ = NULL;
+    data.data_segment_size_ = 0;
   }
   if (data.break_points_ != NULL)
   {
@@ -354,7 +368,6 @@ int runCode(Environment* data, int** bracket_index, int number_of_loops)
     {
       break;
     }
-    printf("test 1\n");
     if (program_counter >= ((data->data_segment_)
                              + data->data_segment_size_ - 1))
     {
@@ -406,7 +419,7 @@ int runCode(Environment* data, int** bracket_index, int number_of_loops)
                                                          number_of_loops, 
                                                          current_command_counter
                                                        , OPEN);
-        current_command_counter = data->bracket_index_[index_of_current_command]
+        current_command_counter = bracket_index[index_of_current_command]
                                                       [CLOSE];
       }
       break;
@@ -416,7 +429,7 @@ int runCode(Environment* data, int** bracket_index, int number_of_loops)
                                                        number_of_loops, 
                                                        current_command_counter,
                                                        CLOSE);
-      current_command_counter = data->bracket_index_[(index_of_current_command)]
+      current_command_counter = bracket_index[(index_of_current_command)]
                                                     [OPEN];
       current_command_counter--;
 
@@ -438,6 +451,7 @@ int runCode(Environment* data, int** bracket_index, int number_of_loops)
   if(current_command_counter == data->code_length_)
     data->end_reached_ = TRUE;
 
+  data->data_executed_ = TRUE;
   return SUCCESS;
 }
 
@@ -471,7 +485,7 @@ int parseCode(unsigned char* code_segment, int*** brackets, int number_of_loops)
     printf("[ERR] out of memory\n");
     return OUT_OF_MEMORY;
   }
-
+  printf("numberofloops: '%d\n", number_of_loops);
   while (code_segment[counter] != '\0')
   {
     if (number_of_loops == 0)
@@ -492,7 +506,7 @@ int parseCode(unsigned char* code_segment, int*** brackets, int number_of_loops)
     counter++;
   }
   free(bracket_queue);
-  printf("[ERR] parsing of input failed\n");
+  printf("[ERR] parsing of input failed2\n");
   return PARSE_FILE_ERROR;
 }
 
@@ -1001,7 +1015,6 @@ int initData(Environment* data)
   }
   setBreakPoint(&data->break_points_, -1);
   data->code_segment_size_ = 0;
-  data->data_segment_size_ = 1024;
   data->last_stop_in_code = 0;
   data->last_program_counter_stop_ = NULL;
   data->data_loaded_ = FALSE;
@@ -1021,19 +1034,21 @@ int initData(Environment* data)
     data->code_segment_ = NULL;
   }
   
-  if (data->data_segment_ != NULL)
+  if (data->data_segment_size_ > 0)
   {
     free(data->data_segment_);
     data->data_segment_ = NULL;
+    data->data_segment_size_ = 0;
   }
 
-  data->data_segment_ = (unsigned char*)calloc(data->data_segment_size_, 
+  data->data_segment_ = (unsigned char*)calloc(STANDARD_DATA_SIZE, 
                                                sizeof(unsigned char));
   if (data->data_segment_ == NULL)
   {
     printf("[ERR] out of memory\n");
     return OUT_OF_MEMORY;
   }
+  data->data_segment_size_ = STANDARD_DATA_SIZE;
   return SUCCESS;
 }
 
@@ -1198,20 +1213,29 @@ int loadCommand(Input* input, Environment* data)
   }
   else
   {
-    data->break_points_ = NULL;
     data->bracket_index_ = NULL;
     data->code_segment_ = NULL;
     data->data_segment_ = NULL;
     data->code_segment_size_ = 0;
-    data->data_segment_size_ = 1024;
     data->last_stop_in_code = 0;
     data->last_program_counter_stop_ = NULL;
     data->data_loaded_ = FALSE;
     data->end_reached_ = FALSE;
     data->step_counter_ = NEUTRAL;
     data->program_counter_index_ = 0;
+    if(data->break_points_ != NULL)
+    {
+    	free(data->break_points_);
+    	data->break_points_ = NULL;
+    }
     setBreakPoint(&data->break_points_, -1);
-    data->data_segment_ = (unsigned char*)calloc(data->data_segment_size_, sizeof(unsigned char));
+    if(data->data_segment_size_ > 0)
+    {
+    	free(data->data_segment_);
+		data->data_segment_ = NULL;
+    	data->data_segment_size_ = 0;
+    }
+    data->data_segment_ = (unsigned char*)calloc(STANDARD_DATA_SIZE, sizeof(unsigned char));
     if (data->data_segment_ == NULL)
     {
       printf("[ERR] out of memory\n");
@@ -1219,16 +1243,29 @@ int loadCommand(Input* input, Environment* data)
       return_value = OUT_OF_MEMORY;
       return return_value;
     }
+    data->data_segment_size_ = STANDARD_DATA_SIZE;
   }
   if((return_value = readCodeFromFile(data, input->args_[0])) != SUCCESS)
   {
     if (return_value == OUT_OF_MEMORY)
     {
       freeInput(input);
+      if(data->data_segment_size_ > 0)
+      {
+		free(data->data_segment_);
+		data->data_segment_ = NULL;
+		data->data_segment_size_ = 0;
+	  }
       return return_value;
     }
     else if(return_value == READING_FILE_FAIL)
     {
+		if(data->data_segment_size_ > 0)
+		{
+			free(data->data_segment_);
+			data->data_segment_ = NULL;
+			data->data_segment_size_ = 0;
+		}
       return return_value;
     }
   }
@@ -1236,6 +1273,12 @@ int loadCommand(Input* input, Environment* data)
   if (checkCodeCorrectness(data->code_segment_, &(data->number_of_loops_)) != SUCCESS)
   {
     printf("[ERR] parsing of input failed\n");
+    if(data->data_segment_size_ > 0)
+    {
+    	free(data->data_segment_);
+    	data->data_segment_ = NULL;
+    	data->data_segment_size_ = 0;
+    }
     data->data_loaded_ = FALSE;
     if(data->code_segment_ != NULL)
     {
@@ -1247,6 +1290,12 @@ int loadCommand(Input* input, Environment* data)
   if (createBracketIndex(&data->bracket_index_, data->number_of_loops_) != SUCCESS)
   {
     freeInput(input);
+    if(data->data_segment_size_ > 0)
+	{
+		free(data->data_segment_);
+		data->data_segment_ = NULL;
+		data->data_segment_size_ = 0;
+	}
     return_value = OUT_OF_MEMORY;
     return return_value;
   }
@@ -1255,14 +1304,19 @@ int loadCommand(Input* input, Environment* data)
     if (return_value == OUT_OF_MEMORY)
     {
       freeInput(input);
-      return return_value;
     }
     else
     {
       return_value = SUCCESS;
       data->data_loaded_ = FALSE;
-      return return_value;
     }
+    if(data->data_segment_size_ > 0)
+	{
+		free(data->data_segment_);
+		data->data_segment_ = NULL;
+		data->data_segment_size_ = 0;
+	}
+    return return_value;
   }
   data->data_loaded_ = TRUE;
   return return_value;
@@ -1425,7 +1479,6 @@ int evalCommand(Input* input, Environment* data, EvalData* eval_data)
     data->code_segment_ = NULL;
     data->data_segment_ = NULL;
     data->code_segment_size_ = 0;
-    data->data_segment_size_ = 1024;
     data->last_stop_in_code = 0;
     data->last_program_counter_stop_ = NULL;
     data->data_loaded_ = TRUE;
@@ -1433,7 +1486,13 @@ int evalCommand(Input* input, Environment* data, EvalData* eval_data)
     data->step_counter_ = NEUTRAL;
     data->program_counter_index_ = 0;
     setBreakPoint(&data->break_points_, -1);
-    data->data_segment_ = (unsigned char*)calloc(data->data_segment_size_, 
+    if(data->data_segment_size_ > 0)
+    {
+    	free(data->data_segment_);
+    	data->data_segment_ = NULL;
+    	data->data_segment_size_ = 0;
+    }
+    data->data_segment_ = (unsigned char*)calloc(STANDARD_DATA_SIZE, 
                                                  sizeof(unsigned char));
     if (data->data_segment_ == NULL)
     {
@@ -1442,6 +1501,7 @@ int evalCommand(Input* input, Environment* data, EvalData* eval_data)
       return_value = OUT_OF_MEMORY;
       return return_value;
     }
+    data->data_segment_size_ = STANDARD_DATA_SIZE;
     data->code_segment_ = (unsigned char*)calloc(85, sizeof(unsigned char));
     if (data->code_segment_ == NULL)
     {
@@ -1480,6 +1540,7 @@ int evalCommand(Input* input, Environment* data, EvalData* eval_data)
   {
     printf("[ERR] parsing of input failed\n");
     cutOutString(&data->code_segment_, eval_data, &data->last_stop_in_code);
+    deleteBracketIndex(&eval_data->bracket_index_, eval_data->number_of_loops_);
     freeInput(input);
     if(eval_data->string_to_insert_ != NULL)
     {
@@ -1494,6 +1555,7 @@ int evalCommand(Input* input, Environment* data, EvalData* eval_data)
   {
     freeInput(input);
     cutOutString(&data->code_segment_, eval_data, &data->last_stop_in_code);
+    deleteBracketIndex(&eval_data->bracket_index_, eval_data->number_of_loops_);
     if(eval_data->string_to_insert_ != NULL)
     {
       free(eval_data->string_to_insert_);
@@ -1526,6 +1588,7 @@ int evalCommand(Input* input, Environment* data, EvalData* eval_data)
   }
   runCode(data, eval_data->bracket_index_, eval_data->number_of_loops_);
   cutOutString(&data->code_segment_, eval_data, &data->last_stop_in_code);
+  deleteBracketIndex(&eval_data->bracket_index_, eval_data->number_of_loops_);
   return return_value;
 }
 
@@ -1548,7 +1611,7 @@ int evalCommand(Input* input, Environment* data, EvalData* eval_data)
 //
 int memoryCommand(Input* input, Environment* data)
 {
-  if (data->data_loaded_ == TRUE)
+  if (data->data_loaded_ == TRUE && data->data_executed_ == TRUE)
   {
     int position = data->program_counter_index_;
     char type[5] = "hex\0";
@@ -1597,7 +1660,7 @@ int memoryCommand(Input* input, Environment* data)
 int changeCommand(Input* input, Environment* data)
 {
   int return_value = SUCCESS;
-  if (data->data_loaded_ == TRUE)
+  if (data->data_loaded_ == TRUE && data->data_executed_ == TRUE)
   {
     int position = data->program_counter_index_;
     unsigned int hex_byte = 0;
@@ -1752,7 +1815,7 @@ void handleNormalMode(Environment* data, int* return_value, char* argv[])
     data->code_segment_ = NULL;
     data->data_segment_ = NULL;
     data->code_segment_size_ = 0;
-    data->data_segment_size_ = 1024;
+    data->data_segment_size_ = STANDARD_DATA_SIZE;
     data->last_stop_in_code = 0;
     data->last_program_counter_stop_ = NULL;
     data->data_loaded_ = FALSE;
